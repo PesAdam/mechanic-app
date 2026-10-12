@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['operation_id', 'work_order_id', 'actual_seconds', 'norm_minutes', 'recorded_at'])]
+#[Fillable(['operation_id', 'work_order_id', 'car_model_id', 'car_engine_id', 'actual_seconds', 'norm_minutes', 'recorded_at'])]
 class OperationSample extends Model
 {
     protected function casts(): array

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useDashboard, useOrders, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
-import { firstName, isRunning, totalsOf } from '../lib/calc'
+import { firstName, isRunning, totalsOf, carName } from '../lib/calc'
 import { eur, hm, hoursSk } from '../lib/format'
 import { plural } from '../lib/text'
 import type { Period } from '../lib/types'
@@ -100,7 +100,7 @@ export default function Dashboard() {
                 return (
                   <tr key={o.id} className="clickable" onClick={() => nav(`/admin/zakazky/${o.id}`)}>
                     <td>{o.number}</td>
-                    <td><b>{o.car.make} {o.car.model}</b> · {o.customer.name}</td>
+                    <td><b>{carName(o.car)}</b> · {o.customer.name}</td>
                     <td>{o.mechanic ? firstName(o.mechanic.name) : '—'}</td>
                     <td className="num">{hasTime ? hm(t.seconds) : '—'}</td>
                     <td className="nowrap">{eur(t.parts_cost)}</td>

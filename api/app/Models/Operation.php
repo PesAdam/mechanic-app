@@ -26,4 +26,9 @@ class Operation extends Model
     {
         return $this->hasMany(OperationSample::class);
     }
+
+    public function norms(): HasMany
+    {
+        return $this->hasMany(OperationNorm::class)->orderBy('car_make_id')->orderBy('car_model_id')->orderBy('car_engine_id');
+    }
 }

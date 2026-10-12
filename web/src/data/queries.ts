@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '../lib/api'
-import type { CodeStatus, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, Role, Settings, User } from '../lib/types'
+import type { CarMake, CodeStatus, VehicleLookup, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, Role, Settings, User } from '../lib/types'
 
 export const keys = {
   orders: ['orders'] as const,
@@ -9,7 +9,10 @@ export const keys = {
   settings: ['settings'] as const,
   dashboard: (p: Period) => ['dashboard', p] as const,
   report: (token: string) => ['public-report', token] as const,
-  operations: ['operations'] as const,
+  operations: (carModelId?: number | null, carEngineId?: number | null, carMakeId?: number | null) =>
+    (carModelId || carEngineId || carMakeId ? (['operations', carModelId ?? 0, carEngineId ?? 0, carMakeId ?? 0] as const) : (['operations'] as const)),
+  carMakes: ['car-makes'] as const,
+  vehicleLookup: (q: string) => ['vehicle-lookup', q] as const,
 }
 
 const LIVE_INTERVAL = 15_000
@@ -38,8 +41,30 @@ export function useUsers() {
   return useQuery({ queryKey: keys.users, queryFn: () => api<{ data: User[] }>('/users').then(unwrap), staleTime: 5 * 60_000 })
 }
 
-export function useOperations() {
-  return useQuery({ queryKey: keys.operations, queryFn: () => api<{ data: Operation[] }>('/operations').then(unwrap), staleTime: 60_000 })
+/** The catalogue; with a car model id every job carries the norm and average for that vehicle. */
+export function useOperations(carModelId?: number | null, carEngineId?: number | null, carMakeId?: number | null) {
+  const qs = [carModelId ? `car_model_id=${carModelId}` : '', carEngineId ? `car_engine_id=${carEngineId}` : '', carMakeId ? `car_make_id=${carMakeId}` : ''].filter(Boolean).join('&')
+  return useQuery({
+    queryKey: keys.operations(carModelId, carEngineId, carMakeId),
+    queryFn: () => api<{ data: Operation[] }>(`/operations${qs ? `?${qs}` : ''}`).then(unwrap),
+    staleTime: 60_000,
+  })
+}
+
+export function useCarMakes() {
+  return useQuery({ queryKey: keys.carMakes, queryFn: () => api<{ data: CarMake[] }>('/car-makes').then(unwrap), staleTime: 5 * 60_000 })
+}
+
+/** ŠPZ/VIN typed into the new-order form: known car from the history + VIN decode. Needs at least 3 characters. */
+export function useVehicleLookup(q: string) {
+  const key = q.replace(/[\s-]+/g, '').toUpperCase()
+  return useQuery({
+    queryKey: keys.vehicleLookup(key),
+    queryFn: () => api<VehicleLookup>(`/vehicles/lookup?q=${encodeURIComponent(key)}`),
+    enabled: key.length >= 3,
+    staleTime: 60_000,
+    placeholderData: prev => prev,
+  })
 }
 
 export function useSettings() {
@@ -95,7 +120,7 @@ export function useOrderActions() {
       call(`/orders/${id}/diagnostic/codes`, { method: 'POST', json: code }),
     closeOrder: async (id: number, parts_pricing?: PartsPricing) => {
       const o = await call(`/orders/${id}/close`, { method: 'POST', json: parts_pricing ? { parts_pricing } : {} })
-      void qc.invalidateQueries({ queryKey: keys.operations }) // samples feed the catalogue averages
+      void qc.invalidateQueries({ queryKey: ['operations'] }) // samples feed the catalogue averages
       return o
     },
     addOperation: (id: number, body: { operation_id: number } | { name: string; norm_minutes: number }) => call(`/orders/${id}/operations`, { method: 'POST', json: body }),
@@ -147,7 +172,8 @@ export interface OperationPayload { name: string; category: string; norm_minutes
 export function useOperationActions() {
   const qc = useQueryClient()
   const put = (op: Operation) => {
-    qc.setQueryData<Operation[]>(keys.operations, list => (list ? (list.some(x => x.id === op.id) ? list.map(x => (x.id === op.id ? op : x)) : [...list, op]) : [op]))
+    qc.setQueryData<Operation[]>(keys.operations(), list => (list ? (list.some(x => x.id === op.id) ? list.map(x => (x.id === op.id ? op : x)) : [...list, op]) : [op]))
+    void qc.invalidateQueries({ queryKey: ['operations'], predicate: q => q.queryKey.length > 1 }) // per-car variants
     return op
   }
   return {
@@ -156,7 +182,28 @@ export function useOperationActions() {
     removeOperation: async (id: number) => {
       const r = await api<{ data: Operation } | undefined>(`/operations/${id}`, { method: 'DELETE' })
       if (r?.data) put(r.data)
-      else qc.setQueryData<Operation[]>(keys.operations, list => list?.filter(x => x.id !== id))
+      else qc.setQueryData<Operation[]>(keys.operations(), list => list?.filter(x => x.id !== id))
     },
+    addNorm: (id: number, body: { car_make_id: number; car_model_id: number | null; car_engine_id: number | null; norm_minutes: number }) =>
+      api<{ data: Operation }>(`/operations/${id}/norms`, { method: 'POST', json: body }).then(unwrap).then(put),
+    removeNorm: (normId: number) => api<{ data: Operation }>(`/operation-norms/${normId}`, { method: 'DELETE' }).then(unwrap).then(put),
+  }
+}
+
+/** Značky a modely. */
+export function useCarActions() {
+  const qc = useQueryClient()
+  const put = (m: CarMake) => {
+    qc.setQueryData<CarMake[]>(keys.carMakes, list => (list ? (list.some(x => x.id === m.id) ? list.map(x => (x.id === m.id ? m : x)) : [...list, m].sort((a, b) => a.name.localeCompare(b.name, 'sk'))) : [m]))
+    return m
+  }
+  return {
+    importDefaults: async () => { const r = await api<{ imported: number; data: CarMake[] }>('/car-makes/import-defaults', { method: 'POST' }); qc.setQueryData(keys.carMakes, r.data); return r.imported },
+    createMake: (name: string) => api<{ data: CarMake }>('/car-makes', { method: 'POST', json: { name } }).then(unwrap).then(put),
+    renameMake: (id: number, name: string) => api<{ data: CarMake }>(`/car-makes/${id}`, { method: 'PATCH', json: { name } }).then(unwrap).then(put),
+    deleteMake: async (id: number) => { await api(`/car-makes/${id}`, { method: 'DELETE' }); qc.setQueryData<CarMake[]>(keys.carMakes, list => list?.filter(x => x.id !== id)) },
+    createModel: (makeId: number, name: string) => api<{ data: CarMake }>(`/car-makes/${makeId}/models`, { method: 'POST', json: { name } }).then(unwrap).then(put),
+    renameModel: (modelId: number, name: string) => api<{ data: CarMake }>(`/car-models/${modelId}`, { method: 'PATCH', json: { name } }).then(unwrap).then(put),
+    deleteModel: (modelId: number) => api<{ data: CarMake }>(`/car-models/${modelId}`, { method: 'DELETE' }).then(unwrap).then(put),
   }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CarMakeController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiagnosticController;
 use App\Http\Controllers\Api\OperationController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Api\PublicReportController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\TimerController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\VehicleLookupController;
 use App\Http\Controllers\Api\WorkEntryController;
 use App\Http\Controllers\Api\WorkOrderController;
 use Illuminate\Support\Facades\Route;
@@ -56,6 +58,20 @@ Route::prefix('v1')->group(function (): void {
         Route::post('operations', [OperationController::class, 'store']);
         Route::patch('operations/{operation}', [OperationController::class, 'update']);
         Route::delete('operations/{operation}', [OperationController::class, 'destroy']);
+        Route::post('operations/{operation}/norms', [OperationController::class, 'storeNorm']);
+        Route::delete('operation-norms/{norm}', [OperationController::class, 'destroyNorm']);
+
+        Route::get('vehicles/lookup', [VehicleLookupController::class, 'show']);
+        Route::get('car-makes', [CarMakeController::class, 'index']);
+        Route::post('car-makes/import-defaults', [CarMakeController::class, 'importDefaults']);
+        Route::post('car-models/{model}/engines', [CarMakeController::class, 'storeEngine']);
+        Route::delete('car-engines/{engine}', [CarMakeController::class, 'destroyEngine']);
+        Route::post('car-makes', [CarMakeController::class, 'store']);
+        Route::patch('car-makes/{make}', [CarMakeController::class, 'update']);
+        Route::delete('car-makes/{make}', [CarMakeController::class, 'destroy']);
+        Route::post('car-makes/{make}/models', [CarMakeController::class, 'storeModel']);
+        Route::patch('car-models/{model}', [CarMakeController::class, 'updateModel']);
+        Route::delete('car-models/{model}', [CarMakeController::class, 'destroyModel']);
 
         Route::post('orders/{order}/operations', [OrderOperationController::class, 'store']);
         Route::patch('order-operations/{orderOperation}', [OrderOperationController::class, 'update']);

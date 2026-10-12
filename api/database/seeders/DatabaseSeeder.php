@@ -6,9 +6,12 @@ use App\Enums\OrderStatus;
 use App\Models\Car;
 use App\Models\Customer;
 use App\Models\Operation;
+use App\Models\OperationNorm;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\CarCatalog;
+use App\Services\Norms;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 
@@ -20,6 +23,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(OperationSeeder::class);
+        CarCatalog::importDefaults();
 
         $adam = User::query()->create(['name' => 'Adam Belko', 'email' => 'adam@dielna.sk', 'password' => self::PASSWORD, 'role' => 'owner']);
         $marek = User::query()->create(['name' => 'Marek Kováčik', 'email' => 'marek@dielna.sk', 'password' => self::PASSWORD]);
@@ -37,10 +41,19 @@ class DatabaseSeeder extends Seeder
         $today = CarbonImmutable::today();
         $at = fn (string $hhmm, int $daysAgo = 0) => $today->subDays($daysAgo)->setTimeFromTimeString($hhmm);
 
+        // Example vehicle-specific norm: front brakes on a Škoda Octavia III 2.0 TDI are rated 100 min.
+        $octavia = CarCatalog::resolve('Škoda', 'Octavia III', '2.0 TDI');
+        OperationNorm::query()->create([
+            'operation_id' => Operation::query()->where('name', 'Výmena brzdových kotúčov a platničiek vpredu')->value('id'),
+            'car_make_id' => $octavia['make']->id,
+            'car_model_id' => $octavia['model']->id,
+            'norm_minutes' => 100,
+        ]);
+
         // #0231 — Octavia, Adam clocked in 31 minutes ago
         $order = $this->order($adam, [
             'customer' => ['name' => 'Ján Kováč', 'phone' => '+421 905 123 456'],
-            'car' => ['make' => 'Škoda', 'model' => 'Octavia III 2.0 TDI', 'plate' => 'ZA 412 KL', 'vin' => 'TMBJG7NE5J0114821', 'km' => 184230],
+            'car' => ['make' => 'Škoda', 'model' => 'Octavia III', 'engine' => '2.0 TDI', 'plate' => 'ZA 412 KL', 'vin' => 'TMBJG7NE5J0114821', 'km' => 184230],
             'number' => '0231', 'summary' => 'Brzdy vpredu + snímač EGR', 'lift' => 'Zdvihák 1',
             'status' => OrderStatus::Open, 'received_at' => $at('09:40'),
         ]);
@@ -72,7 +85,7 @@ class DatabaseSeeder extends Seeder
         // #0232 — Passat, Marek clocked in 48 minutes ago
         $order = $this->order($marek, [
             'customer' => ['name' => 'Eva Hrušková', 'phone' => '+421 911 222 333'],
-            'car' => ['make' => 'VW', 'model' => 'Passat B8 1.6 TDI', 'plate' => 'ZA 908 FT', 'vin' => 'WVWZZZ3CZJE051234', 'km' => 142870],
+            'car' => ['make' => 'Volkswagen', 'model' => 'Passat B8', 'engine' => '1.6 TDI', 'plate' => 'ZA 908 FT', 'vin' => 'WVWZZZ3CZJE051234', 'km' => 142870],
             'number' => '0232', 'summary' => 'Servisná prehliadka, olej + filtre', 'lift' => 'Zdvihák 2',
             'status' => OrderStatus::Open, 'received_at' => $at('12:30'),
         ]);
@@ -90,7 +103,7 @@ class DatabaseSeeder extends Seeder
         // #0233 — BMW waiting for the clutch kit
         $order = $this->order(null, [
             'customer' => ['name' => 'Peter Lacko', 'phone' => '+421 902 555 777'],
-            'car' => ['make' => 'BMW', 'model' => '320d F30', 'plate' => 'ZA 115 DK', 'vin' => 'WBA3D31050F123456', 'km' => 211400],
+            'car' => ['make' => 'BMW', 'model' => '3 (F30)', 'engine' => '320d', 'plate' => 'ZA 115 DK', 'vin' => 'WBA3D31050F123456', 'km' => 211400],
             'number' => '0233', 'summary' => 'Spojka', 'status' => OrderStatus::Waiting, 'received_at' => $at('14:00'),
         ]);
         $order->parts()->create(['name' => 'Spojková sada LuK 624 3277 00', 'meta' => '1 sada · objednané', 'price' => 389, 'purchase_price' => 312, 'added_at' => $at('08:15')]);
@@ -98,7 +111,7 @@ class DatabaseSeeder extends Seeder
         // #0229 — Kia, finished two days ago, waiting for payment
         $order = $this->order($tomas, [
             'customer' => ['name' => 'Mária Vargová', 'phone' => '+421 948 101 202'],
-            'car' => ['make' => 'Kia', 'model' => 'Ceed 1.4 CRDi', 'plate' => 'ZA 331 PE', 'vin' => 'U5YHN516AEL123456', 'km' => 96350],
+            'car' => ['make' => 'Kia', 'model' => 'Ceed II', 'engine' => '1.4 CRDi', 'plate' => 'ZA 331 PE', 'vin' => 'U5YHN516AEL123456', 'km' => 96350],
             'number' => '0229', 'summary' => 'Olej, brzdová kvapalina, stierače',
             'status' => OrderStatus::Unpaid, 'received_at' => $at('08:30', 2), 'closed_at' => $at('11:20', 2),
         ]);
@@ -121,7 +134,8 @@ class DatabaseSeeder extends Seeder
     {
         foreach ($names as $i => $name) {
             $op = Operation::query()->where('name', $name)->firstOrFail();
-            $order->operations()->create(['operation_id' => $op->id, 'name' => $op->name, 'norm_minutes' => $op->norm_minutes, 'done' => $done, 'sort' => $i]);
+            $norm = Norms::resolve($op, $order->car)['minutes'];
+            $order->operations()->create(['operation_id' => $op->id, 'name' => $op->name, 'norm_minutes' => $norm, 'done' => $done, 'sort' => $i]);
         }
     }
 
@@ -129,7 +143,8 @@ class DatabaseSeeder extends Seeder
     private function order(?User $mechanic, array $data): WorkOrder
     {
         $customer = Customer::query()->create($data['customer']);
-        $car = Car::query()->create([...$data['car'], 'customer_id' => $customer->id]);
+        $vehicle = CarCatalog::resolve($data['car']['make'], $data['car']['model'], $data['car']['engine'] ?? null);
+        $car = Car::query()->create([...$data['car'], 'customer_id' => $customer->id, 'car_model_id' => $vehicle['model']->id, 'car_engine_id' => $vehicle['engine']?->id]);
 
         return WorkOrder::query()->create([
             'number' => $data['number'],

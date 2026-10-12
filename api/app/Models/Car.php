@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['customer_id', 'make', 'model', 'plate', 'vin', 'km'])]
+#[Fillable(['customer_id', 'car_model_id', 'car_engine_id', 'make', 'model', 'engine', 'plate', 'vin', 'km'])]
 class Car extends Model
 {
     /** @use HasFactory<CarFactory> */
@@ -23,6 +23,16 @@ class Car extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function carModel(): BelongsTo
+    {
+        return $this->belongsTo(CarModel::class);
+    }
+
+    public function carEngine(): BelongsTo
+    {
+        return $this->belongsTo(CarEngine::class);
     }
 
     public function workOrders(): HasMany

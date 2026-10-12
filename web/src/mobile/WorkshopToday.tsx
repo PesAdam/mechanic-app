@@ -3,13 +3,14 @@ import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { useOrders, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
-import { entrySeconds, firstName, isClosed, isRunning, runningEntry, totalsOf } from '../lib/calc'
+import { entrySeconds, firstName, isClosed, isRunning, runningEntry, totalsOf, carName } from '../lib/calc'
 import NormBadge from '../components/NormBadge'
 import { dateOf, eur, hm, hms, isoDate, skDateShort, timeOf, weekday } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
 import type { LaborBilling, Order } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
+import MakeLogo from '../components/MakeLogo'
 import StatusTag from '../components/StatusTag'
 import NewJobDialog from '../components/NewJobDialog'
 import InstallBanner from '../components/InstallBanner'
@@ -110,7 +111,7 @@ function JobCard({ order, now, rate, billing }: { order: Order; now: number; rat
       </div>
       {waiting ? (
         <div style={{ minWidth: 0 }}>
-          <div className="card-title">{order.car.make} {order.car.model}</div>
+          <div className="card-title">{carName(order.car)}</div>
           <div className="muted" style={{ fontSize: 12 }}>
             {order.customer.name} · {order.car.plate} · {lowerFirst(order.summary)}{order.received_at ? `, príjem ${receivedToday ? timeOf(order.received_at) : skDateShort(dateOf(order.received_at))}` : ''}
           </div>
@@ -118,9 +119,9 @@ function JobCard({ order, now, rate, billing }: { order: Order; now: number; rat
       ) : (
         <>
           <div style={{ display: 'flex', gap: 12 }}>
-            <ImageSlot src={cover?.url} label="Auto" style={{ width: 88, height: 66, flex: 'none' }} />
+            {cover && <ImageSlot src={cover.url} label="Auto" style={{ width: 88, height: 66, flex: 'none' }} />}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="card-title">{order.car.make} {order.car.model}</div>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><MakeLogo name={order.car.make} url={order.car.logo_url} size={22} decorative />{carName(order.car)}</div>
               <div className="muted" style={{ fontSize: 12 }}>{order.customer.name} · {order.car.plate}</div>
               <div style={{ fontSize: 13, marginTop: 4 }}>{order.summary}</div>
             </div>
@@ -148,7 +149,7 @@ function FinishedCard({ order, now, rate, billing }: { order: Order; now: number
         <StatusTag status={order.status} />
       </div>
       <div>
-        <div className="card-title">{order.car.make} {order.car.model}</div>
+        <div className="card-title">{carName(order.car)}</div>
         <div className="muted" style={{ fontSize: 12 }}>{order.customer.name} · {order.car.plate} · {firstName(order.mechanic?.name)}</div>
       </div>
       <div className="card-foot">
@@ -186,7 +187,7 @@ function PeopleView({ orders, now, today }: { orders: Order[]; now: number; toda
             </div>
             {rows.map(({ o, sec }) => (
               <Link key={o.id} to={`/m/zakazky/${o.id}`} className="job-row">
-                <span>#{o.number} · {o.car.make} {o.car.model}</span>
+                <span>#{o.number} · {carName(o.car)}</span>
                 <span className="hd num">{hm(sec)}</span>
               </Link>
             ))}

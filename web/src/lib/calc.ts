@@ -49,3 +49,6 @@ export function totalsOf(o: Order, rate: number, now: number, billing: LaborBill
 }
 
 export const firstName = (name?: string | null): string => (name ? name.split(' ')[0] : '—')
+
+/** "Škoda Octavia III 2.0 TDI" */
+export const carName = (car: { make: string; model: string; engine?: string | null }): string => [car.make, car.model, car.engine].filter(Boolean).join(' ')

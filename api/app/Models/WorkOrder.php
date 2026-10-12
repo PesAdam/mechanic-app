@@ -50,7 +50,7 @@ class WorkOrder extends Model
     /** @param Builder<WorkOrder> $query */
     public function scopeWithEverything(Builder $query): Builder
     {
-        return $query->with(['customer', 'car', 'mechanic', 'parts', 'photos', 'diagnostic.codes', 'workEntries.user', 'operations']);
+        return $query->with(['customer', 'car.carModel.make', 'mechanic', 'parts', 'photos', 'diagnostic.codes', 'workEntries.user', 'operations']);
     }
 
     public function customer(): BelongsTo

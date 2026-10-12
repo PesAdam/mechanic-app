@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { useOperations, useOrderActions } from '../data/queries'
 import { useAction } from '../lib/useAction'
-import { normSeconds } from '../lib/calc'
+import { carName, normSeconds } from '../lib/calc'
 import { hm } from '../lib/format'
 import type { Order } from '../lib/types'
 import AddOperationDialog from './AddOperationDialog'
@@ -11,7 +11,7 @@ interface Props { order: Order; closed: boolean; title?: boolean }
 
 /** The jobs on an order: tick when done, norms add up to what the stopwatch is measured against. */
 export default function OperationsSection({ order, closed, title = true }: Props) {
-  const catalog = useOperations()
+  const catalog = useOperations(order.car.car_model_id, order.car.car_engine_id)
   const actions = useOrderActions()
   const act = useAction()
   const [addOpen, setAddOpen] = useState(false)
@@ -34,7 +34,7 @@ export default function OperationsSection({ order, closed, title = true }: Props
               </button>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 14, fontWeight: 500, textDecoration: op.done ? 'line-through' : 'none', opacity: op.done ? 0.7 : 1 }}>{op.name}</span>
-                <span className="muted" style={{ display: 'block', fontSize: 11 }}>norma {hm(op.norm_minutes * 60)}{cat?.avg_seconds ? ` · tvoj priemer ${hm(cat.avg_seconds)} (${cat.samples_count}×)` : ''}</span>
+                <span className="muted" style={{ display: 'block', fontSize: 11 }}>norma {hm(op.norm_minutes * 60)}{cat?.car_avg_seconds ? ` · priemer na ${carName(order.car)}: ${hm(cat.car_avg_seconds)} (${cat.car_samples_count}×)` : cat?.avg_seconds ? ` · tvoj priemer ${hm(cat.avg_seconds)} (${cat.samples_count}×)` : ''}</span>
               </span>
               {!closed && (
                 <button type="button" className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} aria-label="Odstrániť úkon" disabled={act.busy}
@@ -47,7 +47,7 @@ export default function OperationsSection({ order, closed, title = true }: Props
       </div>
       {act.error && <div className="form-error" role="alert">{act.error}</div>}
       {!closed && <button className="btn btn-ghost" style={{ marginTop: 6, minHeight: 44, alignSelf: 'flex-start' }} onClick={() => setAddOpen(true)}>+ Pridať úkon</button>}
-      <AddOperationDialog open={addOpen} onClose={() => setAddOpen(false)} orderId={order.id} />
+      <AddOperationDialog open={addOpen} onClose={() => setAddOpen(false)} orderId={order.id} carModelId={order.car.car_model_id} carEngineId={order.car.car_engine_id} carLabel={carName(order.car)} />
     </>
   )
 }

@@ -9,6 +9,7 @@ use App\Http\Resources\WorkOrderResource;
 use App\Models\Car;
 use App\Models\Customer;
 use App\Models\WorkOrder;
+use App\Services\CarCatalog;
 use App\Services\OperationSamples;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,8 +36,10 @@ class WorkOrderController extends Controller
             'customer.name' => ['required', 'string', 'max:120'],
             'customer.phone' => ['nullable', 'string', 'max:32'],
             'customer.email' => ['nullable', 'email', 'max:120'],
+            'car.id' => ['nullable', 'integer', 'exists:cars,id'],
             'car.make' => ['required', 'string', 'max:64'],
             'car.model' => ['required', 'string', 'max:128'],
+            'car.engine' => ['nullable', 'string', 'max:64'],
             'car.plate' => ['required', 'string', 'max:16'],
             'car.vin' => ['nullable', 'string', 'max:17'],
             'car.km' => ['nullable', 'integer', 'min:0'],
@@ -45,14 +48,28 @@ class WorkOrderController extends Controller
         ]);
 
         $order = DB::transaction(function () use ($data) {
-            $customer = Customer::query()->create($data['customer']);
-            $car = Car::query()->create([
-                ...$data['car'],
+            $vehicle = CarCatalog::resolve($data['car']['make'], $data['car']['model'], $data['car']['engine'] ?? null);
+            $attributes = [
+                'make' => $vehicle['make']->name,
+                'model' => $vehicle['model']->name,
+                'engine' => $vehicle['engine']?->name,
+                'car_model_id' => $vehicle['model']->id,
+                'car_engine_id' => $vehicle['engine']?->id,
                 'plate' => mb_strtoupper($data['car']['plate']),
                 'vin' => isset($data['car']['vin']) ? mb_strtoupper($data['car']['vin']) : null,
                 'km' => $data['car']['km'] ?? 0,
-                'customer_id' => $customer->id,
-            ]);
+            ];
+
+            // A returning car keeps its history: same car row, same customer (details refreshed).
+            $car = isset($data['car']['id']) ? Car::query()->with('customer')->find($data['car']['id']) : null;
+            if ($car) {
+                $car->update(['km' => max($car->km, $attributes['km'])] + $attributes);
+                $customer = $car->customer;
+                $customer->update(array_filter($data['customer'], fn ($v) => $v !== null && $v !== ''));
+            } else {
+                $customer = Customer::query()->create($data['customer']);
+                $car = Car::query()->create($attributes + ['customer_id' => $customer->id]);
+            }
 
             return WorkOrder::query()->create([
                 'customer_id' => $customer->id,
@@ -109,6 +126,6 @@ class WorkOrderController extends Controller
 
     private function loaded(WorkOrder $order): WorkOrder
     {
-        return $order->fresh()->load(['customer', 'car', 'mechanic', 'parts', 'photos', 'diagnostic.codes', 'workEntries.user', 'operations']);
+        return $order->fresh()->load(['customer', 'car.carModel.make', 'mechanic', 'parts', 'photos', 'diagnostic.codes', 'workEntries.user', 'operations']);
     }
 }

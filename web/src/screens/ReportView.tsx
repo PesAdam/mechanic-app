@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { FileText } from 'lucide-react'
-import { entrySeconds, firstName, partPrice, totalsOf } from '../lib/calc'
+import { entrySeconds, firstName, partPrice, totalsOf, carName } from '../lib/calc'
 import { addDays, dateOf, eur, hhmm, hm, hoursSk, km, shortVin, skDate } from '../lib/format'
 import type { CodeStatus, Order, Settings } from '../lib/types'
 import Blueprint from '../components/Blueprint'
@@ -55,7 +55,7 @@ export default function ReportView({ order, settings, now, tools }: Props) {
           </Blueprint>
           <Blueprint className="r-box">
             <div className="r-k">Vozidlo</div>
-            <div className="hd" style={{ fontSize: 20 }}>{order.car.make} {order.car.model}</div>
+            <div className="hd" style={{ fontSize: 20 }}>{carName(order.car)}</div>
             <div className="muted">{order.car.plate} · VIN {shortVin(order.car.vin)} · {km(order.car.km)}</div>
           </Blueprint>
         </div>

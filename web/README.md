@@ -29,10 +29,12 @@ Premenné prostredia sú v `.env.example`: `VITE_API_URL` (prázdne = rovnaký o
 | `/admin/zakazky` | — | **Zákazky** — tabuľka s filtrom a hľadaním |
 | `/admin/zakazky/:id` | — | **Detail zákazky** (desktop) — čas, diely, fotky, diagnostika, súčet, mechanik, uzavretie, uhradenie, odkaz na report |
 | `/admin/reporty`, `/admin/reporty/:id` | 1e | **Reporty** — zoznam, náhľad, tlač do PDF, kopírovanie odkazu, označenie ako uhradené |
-| `/admin/ukony` | — | **Úkony** — katalóg normohodín, tvoj priemer z histórie |
+| `/admin/ukony` | — | **Úkony** — katalóg normohodín, normy podľa značky / modelu / motorizácie (modely sú generácie s rokmi), vozidlo sa dá nájsť aj podľa ŠPZ / VIN v tom istom políčku ako značka, tvoj priemer z histórie, doplnenie katalógu vozidiel |
 | `/admin/tim` | — | **Tím** — účty kolegov |
 | `/admin/nastavenia` | — | **Nastavenia** — údaje firmy na doklade, sadzba |
 | `/r/:token` | 1e | verejná online verzia reportu bez prihlásenia |
+
+Hľadanie vozidla (`components/VehicleLookup.tsx`, používa ho dialóg novej zákazky aj výber vozidla v Úkonoch): po zadaní ŠPZ alebo VIN sa cez `GET vehicles/lookup` ponúkne auto z histórie (jedným klikom predvyplní vozidlo, zákazníka aj km a zákazka sa pripojí k existujúcemu autu) a pri VIN aj to, čo sa dá z neho prečítať offline: značka, modelový rok a generácia (`VinHint`); pri zdieľanom kóde modelu sa ponúknu kandidáti. Výber vozidla potom pokračuje rovno na motorizácii.
 
 ## Štruktúra
 

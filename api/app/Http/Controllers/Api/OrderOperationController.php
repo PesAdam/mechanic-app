@@ -7,6 +7,7 @@ use App\Http\Resources\WorkOrderResource;
 use App\Models\Operation;
 use App\Models\OrderOperation;
 use App\Models\WorkOrder;
+use App\Services\Norms;
 use Illuminate\Http\Request;
 
 /** Jobs picked on an order; their norms add up to the time the stopwatch is measured against. */
@@ -23,11 +24,12 @@ class OrderOperationController extends Controller
         abort_if($order->isClosed(), 409, 'Zákazka je uzavretá.');
 
         $catalog = isset($data['operation_id']) ? Operation::query()->find($data['operation_id']) : null;
+        $resolved = $catalog ? Norms::resolve($catalog, $order->car) : null;
 
         $order->operations()->create([
             'operation_id' => $catalog?->id,
             'name' => $data['name'] ?? $catalog->name,
-            'norm_minutes' => $data['norm_minutes'] ?? $catalog->norm_minutes,
+            'norm_minutes' => $data['norm_minutes'] ?? $resolved['minutes'],
             'sort' => $order->operations()->count(),
         ]);
 

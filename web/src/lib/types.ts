@@ -8,7 +8,22 @@ export interface User { id: number; name: string; email: string; role: Role; is_
 export interface UserRef { id: number; name: string }
 
 export interface Customer { id: number; name: string; phone: string | null; email: string | null }
-export interface Car { id: number; make: string; model: string; plate: string; vin: string | null; km: number }
+export interface Car {
+  id: number; make: string; model: string; engine: string | null
+  car_model_id: number | null; car_engine_id: number | null; car_make_id: number | null; logo_url: string | null
+  plate: string; vin: string | null; km: number
+}
+
+export interface CarEngine { id: number; car_model_id: number; name: string; cars_count: number }
+/** `years` = production years of the generation, e.g. "2012–2019", orientation only. */
+export interface CarModel { id: number; car_make_id: number; name: string; years: string | null; cars_count: number; engines: CarEngine[] }
+export interface CarMake { id: number; name: string; logo_url: string | null; cars_count: number; models: CarModel[] }
+
+/** Norm of a job for a make, one model of it, or one engine of that model. */
+export interface OperationNorm {
+  id: number; car_make_id: number; car_make: string | null; car_model_id: number | null; car_model: string | null
+  car_engine_id: number | null; car_engine: string | null; norm_minutes: number
+}
 
 /** `price` is the retail price (MOC) on the invoice; `purchase_price` is what the shop paid (NC). */
 export interface Part { id: number; name: string; meta: string | null; price: number; purchase_price: number | null; used: boolean; added_at: string }
@@ -18,7 +33,12 @@ export type PartsPricing = 'moc' | 'nc'
 export type LaborBilling = 'actual' | 'norm'
 
 /** A catalogue job with its norm time and the shop's measured average. */
-export interface Operation { id: number; name: string; category: string; norm_minutes: number; is_active: boolean; samples_count: number; avg_seconds: number | null }
+export interface Operation {
+  id: number; name: string; category: string; norm_minutes: number; is_active: boolean; samples_count: number; avg_seconds: number | null
+  norms: OperationNorm[]
+  /** Present when the catalogue was asked for a specific car model. */
+  car_norm_minutes?: number; car_norm_source?: 'engine' | 'model' | 'make' | 'default'; car_norm_id?: number | null; car_avg_seconds?: number | null; car_samples_count?: number
+}
 /** A job picked on an order (name and norm are snapshots). */
 export interface OrderOperation { id: number; operation_id: number | null; name: string; norm_minutes: number; done: boolean }
 
@@ -82,7 +102,24 @@ export interface DashboardData {
 
 export interface NewOrderPayload {
   customer: { name: string; phone?: string; email?: string }
-  car: { make: string; model: string; plate: string; vin?: string; km?: number }
+  /** `id` = a car from the history (found by ŠPZ/VIN): it is reused instead of creating a new one. */
+  car: { id?: number; make: string; model: string; engine?: string; plate: string; vin?: string; km?: number }
   summary: string
   lift?: string
 }
+
+/** Result of `GET /vehicles/lookup?q=` – the shop's own history plus what the VIN itself reveals. */
+export interface VehicleMatch {
+  car: Car
+  customer: Customer
+  orders_count: number
+  last_order: { id: number; number: string; received_at: string | null; summary: string } | null
+}
+export interface VinInfo {
+  valid: boolean
+  make: string | null; car_make_id: number | null; logo_url: string | null
+  year: number | null
+  /** Generation candidates; one when the code is unambiguous, several when it is shared. */
+  models: { name: string; car_model_id: number | null; years: string | null }[]
+}
+export interface VehicleLookup { matches: VehicleMatch[]; vin: VinInfo | null }

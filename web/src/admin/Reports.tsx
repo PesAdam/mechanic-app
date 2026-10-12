@@ -4,7 +4,7 @@ import { Check, Copy, Printer } from 'lucide-react'
 import { useOrderActions, useOrders, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { isClosed, isRunning, totalsOf } from '../lib/calc'
+import { isClosed, isRunning, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, skDate } from '../lib/format'
 import { copyText, publicReportUrl } from '../lib/share'
 import { plural } from '../lib/text'
@@ -44,7 +44,7 @@ export default function Reports() {
                   <tr key={o.id}>
                     <td>{o.number}</td>
                     <td className="nowrap">{o.closed_at ? skDate(dateOf(o.closed_at)) : '—'}</td>
-                    <td><b>{o.car.make} {o.car.model}</b> · {o.customer.name}<div className="muted" style={{ fontSize: 11 }}>{o.car.plate}</div></td>
+                    <td><b>{carName(o.car)}</b> · {o.customer.name}<div className="muted" style={{ fontSize: 11 }}>{o.car.plate}</div></td>
                     <td className="nowrap">
                       <div><b>{eur(t.grand)}</b> <span className="muted" style={{ fontSize: 10 }}>diely {o.parts_pricing.toUpperCase()}</span></div>
                       <div className="muted" style={{ fontSize: 11 }}>

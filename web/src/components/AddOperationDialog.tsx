@@ -10,11 +10,11 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 export const categoryLabel = (c: string) => CATEGORY_LABEL[c] ?? c
 
-interface Props { open: boolean; onClose: () => void; orderId: number }
+interface Props { open: boolean; onClose: () => void; orderId: number; carModelId?: number | null; carEngineId?: number | null; carLabel?: string }
 
 /** Pick a job from the catalogue (search) or type a one-off job with its own norm. */
-export default function AddOperationDialog({ open, onClose, orderId }: Props) {
-  const catalog = useOperations()
+export default function AddOperationDialog({ open, onClose, orderId, carModelId, carEngineId, carLabel }: Props) {
+  const catalog = useOperations(carModelId, carEngineId)
   const { addOperation } = useOrderActions()
   const [query, setQuery] = useState('')
   const [customName, setCustomName] = useState('')
@@ -41,12 +41,17 @@ export default function AddOperationDialog({ open, onClose, orderId }: Props) {
     <Dialog open={open} title="Pridať úkon" onClose={onClose}
       actions={<button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Zavrieť</button>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {carLabel && <div className="muted" style={{ fontSize: 12 }}>Normy pre {carLabel}: motorizácia → model → značka → všeobecná.</div>}
         <div className="field"><label htmlFor="op-q">Z katalógu</label><input id="op-q" className="input" value={query} onChange={e => setQuery(e.target.value)} placeholder="Hľadať: brzdy, olej, spojka…" autoFocus /></div>
         <div className="op-list">
           {matches.map(o => (
             <button key={o.id} type="button" className="op-pick" disabled={busy} onClick={() => void run(() => addOperation(orderId, { operation_id: o.id }))}>
-              <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontSize: 14 }}>{o.name}</span><span className="muted" style={{ fontSize: 11 }}>{categoryLabel(o.category)}{o.avg_seconds ? ` · tvoj priemer ${hm(o.avg_seconds)} (${o.samples_count}×)` : ''}</span></span>
-              <span className="hd num" style={{ whiteSpace: 'nowrap' }}>{hm(o.norm_minutes * 60)}</span>
+              <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontSize: 14 }}>{o.name}</span><span className="muted" style={{ fontSize: 11 }}>
+                {categoryLabel(o.category)}
+                {o.car_norm_source === 'engine' ? ' · norma pre túto motorizáciu' : o.car_norm_source === 'model' ? ' · norma pre tento model' : o.car_norm_source === 'make' ? ' · norma pre značku' : ''}
+                {o.car_avg_seconds ? ` · priemer na tomto modeli ${hm(o.car_avg_seconds)} (${o.car_samples_count}×)` : o.avg_seconds ? ` · tvoj priemer ${hm(o.avg_seconds)} (${o.samples_count}×)` : ''}
+              </span></span>
+              <span className="hd num" style={{ whiteSpace: 'nowrap' }}>{hm((o.car_norm_minutes ?? o.norm_minutes) * 60)}</span>
             </button>
           ))}
           {!matches.length && <div className="muted" style={{ fontSize: 13, padding: 10 }}>{catalog.isPending ? 'Načítavam katalóg…' : 'Nič sa nenašlo. Pridajte vlastný úkon nižšie.'}</div>}

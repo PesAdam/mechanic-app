@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useOrders, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
-import { firstName, isClosed, isRunning, normClass, runningEntry, totalsOf } from '../lib/calc'
+import { firstName, isClosed, isRunning, normClass, runningEntry, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, skDateShort } from '../lib/format'
 import { plural } from '../lib/text'
 import type { Order } from '../lib/types'
@@ -64,7 +64,7 @@ export default function Orders() {
                   <tr key={o.id} className="clickable" onClick={() => nav(`/admin/zakazky/${o.id}`)}>
                     <td>{o.number}</td>
                     <td className="nowrap">{o.received_at ? skDateShort(dateOf(o.received_at)) : '—'}</td>
-                    <td><b>{o.car.make} {o.car.model}</b> · {o.customer.name}<div className="muted" style={{ fontSize: 11 }}>{o.summary}</div></td>
+                    <td><b>{carName(o.car)}</b> · {o.customer.name}<div className="muted" style={{ fontSize: 11 }}>{o.summary}</div></td>
                     <td className="nowrap">{o.car.plate}</td>
                     <td className="nowrap">{run ? <span style={{ color: 'var(--color-accent-700)' }}>● {firstName(run.user.name)}</span> : o.mechanic ? firstName(o.mechanic.name) : '—'}</td>
                     <td className={`num ${normClass(t.seconds, t.norm_seconds)}`}>{t.seconds ? hm(t.seconds) : '—'}{t.norm_seconds ? <div className="muted" style={{ fontSize: 10 }}>norma {hm(t.norm_seconds)}</div> : null}</td>

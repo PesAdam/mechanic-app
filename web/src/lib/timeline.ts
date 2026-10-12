@@ -1,7 +1,7 @@
 import type { Order, Part, Photo } from './types'
 import { eur, hm, hms, timeOf } from './format'
 import { lowerFirst } from './text'
-import { entrySeconds, firstName } from './calc'
+import { carName, entrySeconds, firstName } from './calc'
 
 export interface TimelineEvent {
   id: string
@@ -22,7 +22,7 @@ export function buildTimeline(order: Order, now: number): TimelineEvent[] {
 
   if (order.received_at) {
     evs.push({ id: 'recv', time: timeOf(order.received_at), sort: Date.parse(order.received_at), title: 'Príjem auta',
-      text: `${order.car.make} ${order.car.model} · ${order.car.plate} · ${lowerFirst(order.summary)}` })
+      text: `${carName(order.car)} · ${order.car.plate} · ${lowerFirst(order.summary)}` })
   }
 
   if (order.diagnostic) {

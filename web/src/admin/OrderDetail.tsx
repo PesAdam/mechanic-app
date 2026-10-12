@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { entrySeconds, firstName, isClosed, isRunning, normClass, runningEntryOf, totalsOf } from '../lib/calc'
+import { entrySeconds, firstName, isClosed, isRunning, normClass, runningEntryOf, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, hoursSk, km, shortVin, skDate, timeOf } from '../lib/format'
 import { publicReportUrl } from '../lib/share'
 import type { CodeStatus, Part, PhotoStage, WorkEntry } from '../lib/types'
@@ -19,6 +19,7 @@ import NormBadge from '../components/NormBadge'
 import OperationsSection from '../components/OperationsSection'
 import AddPhotoTile from '../components/AddPhotoTile'
 import ShareReport from '../components/ShareReport'
+import MakeLogo from '../components/MakeLogo'
 import { AddCodeDialog, AddPartDialog, ManualTimeDialog } from '../components/JobDialogs'
 
 const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
@@ -64,7 +65,7 @@ export default function OrderDetail() {
       <div className="admin-head">
         <div>
           <div className="kicker"><Link to="/admin/zakazky">Zákazky</Link> · #{order.number}{order.received_at ? ` · prijaté ${skDate(dateOf(order.received_at))} ${timeOf(order.received_at)}` : ''}</div>
-          <h1>{order.car.make} {order.car.model}</h1>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MakeLogo name={order.car.make} url={order.car.logo_url} size={34} decorative />{carName(order.car)}</h1>
           <div className="muted" style={{ fontSize: 13 }}>{order.car.plate} · {km(order.car.km)} · VIN {shortVin(order.car.vin)} · {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ''}</div>
         </div>
         <div className="admin-actions">

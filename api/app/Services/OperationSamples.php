@@ -14,7 +14,7 @@ final class OperationSamples
 {
     public static function record(WorkOrder $order): void
     {
-        $order->loadMissing(['workEntries', 'operations']);
+        $order->loadMissing(['workEntries', 'operations', 'car']);
 
         OperationSample::query()->where('work_order_id', $order->id)->delete();
 
@@ -30,6 +30,8 @@ final class OperationSamples
             OperationSample::query()->create([
                 'operation_id' => $op->operation_id,
                 'work_order_id' => $order->id,
+                'car_model_id' => $order->car?->car_model_id,
+                'car_engine_id' => $order->car?->car_engine_id,
                 'actual_seconds' => (int) round($actual * $op->norm_minutes / $normSum),
                 'norm_minutes' => $op->norm_minutes,
                 'recorded_at' => now(),

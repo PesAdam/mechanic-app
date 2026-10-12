@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { firstName, isClosed, isRunning, normClass, runningEntry, runningEntryOf, sessionSeconds, totalsOf } from '../lib/calc'
+import { firstName, isClosed, isRunning, normClass, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
 import { eur, hm, hms, km, timeOf } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
 import type { Part, PhotoStage } from '../lib/types'
@@ -81,7 +81,7 @@ export default function JobDetail() {
 
         <div>
           <div className="kicker">Zákazka #{order.number} · {order.customer.name}</div>
-          <h2 style={{ fontSize: 28, margin: '2px 0 0' }}>{order.car.make} {order.car.model}</h2>
+          <h2 style={{ fontSize: 28, margin: '2px 0 0' }}>{carName(order.car)}</h2>
           <div className="muted" style={{ fontSize: 13 }}>{order.car.plate} · {km(order.car.km)} · {lowerFirst(order.summary)}</div>
         </div>
 
