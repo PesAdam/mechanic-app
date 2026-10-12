@@ -1,6 +1,5 @@
-node_modules
-dist
 .DS_Store
-*.local
 .vite
-dev-dist
+/vendor
+/composer.json
+/composer.lock
