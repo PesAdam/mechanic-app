@@ -4,3 +4,7 @@ dist
 *.local
 .vite
 dev-dist
+
+# Playwright
+playwright-report
+test-results

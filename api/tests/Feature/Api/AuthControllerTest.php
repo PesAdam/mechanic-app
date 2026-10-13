@@ -49,6 +49,16 @@ class AuthControllerTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    public function test_login_attempts_are_limited_per_minute_by_config(): void
+    {
+        config(['auth.login_per_minute' => 1]);
+        User::factory()->create(['email' => 'adam@dielna.sk', 'password' => 'heslo1234']);
+        $credentials = ['email' => 'adam@dielna.sk', 'password' => 'heslo1234'];
+
+        $this->postJson('/api/v1/auth/login', $credentials)->assertOk();
+        $this->postJson('/api/v1/auth/login', $credentials)->assertStatus(429);
+    }
+
     public function test_me_returns_401_without_token(): void
     {
         $this->getJson('/api/v1/auth/me')->assertUnauthorized();

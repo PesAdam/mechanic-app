@@ -62,3 +62,14 @@ src/
 - **Ikony:** zdroj `public/icon.svg`, PNG generuje `npx pwa-assets-generator` podľa `pwa-assets.config.ts`.
 
 Service worker beží len v builde (`npm run build && npm run preview`). Na telefóne treba HTTPS.
+
+## Testy
+
+| Príkaz | Čo beží |
+|---|---|
+| `npm test` | Vitest + Testing Library (jsdom): výpočty (`lib/calc`), formátovanie, slovenské plurály, `VehiclePicker`, `VehicleLookup`, `NewJobDialog`, `NormBadge`. API je namockované cez `vi.mock('../data/queries')`, fixtúry sú v `src/test/fixtures.ts`. |
+| `npm run test:watch` | to isté v režime sledovania |
+| `npm run e2e` | Playwright proti reálnemu API: `e2e/api.sh` nahrá čerstvú SQLite so seedom (`api/.env.e2e`, port 8099) a `vite preview` servíruje produkčný build na 5199. Scenáre: prihlásenie a zóny (`auth`), deň mechanika od ŠPZ cez stopky, diel a uzavretie po verejný report (`workshop`), Úkony s VIN a normou, Reporty, Tím (`admin`). |
+| `npm run e2e:ui` | Playwright v interaktívnom režime |
+
+Prvýkrát treba `npx playwright install chromium`. E2E beží v jednom workeri, lebo scenáre zdieľajú databázu; lokálne sa bežiaci E2E server znovu použije (databáza sa neresetuje medzi behmi), v CI sa vždy štartuje nanovo. Testy mimo `auth` sa prihlasujú cez API (`loginViaApi`), aby nenarazili na limit pokusov o prihlásenie.

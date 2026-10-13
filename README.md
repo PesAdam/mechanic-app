@@ -48,3 +48,9 @@ Demo účty (heslo `heslo1234`): `adam@dielna.sk` (majiteľ), `marek@dielna.sk`,
 - Sekcie Autá a Zákazníci, história áut podľa VIN/ŠPZ.
 - Parsovanie chybových kódov priamo z PDF protokolu.
 - Export reportu do PDF na serveri a odoslanie zákazníkovi.
+
+## Testy a CI
+
+- API: `cd api && php artisan test` (PHPUnit, SQLite v pamäti) a `vendor/bin/pint --test`.
+- Web: `cd web && npm test` (Vitest) a `npm run e2e` (Playwright proti reálnemu API, pozri `web/README.md`).
+- GitHub Actions (`.github/workflows/ci.yml`) spustí pri každom pushi na `main` a pri pull requeste tri joby: API (Pint + PHPUnit), Web (typecheck + Vitest + build) a E2E (Playwright, Chromium); pri páde E2E sa priloží HTML report.

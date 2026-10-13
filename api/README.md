@@ -31,6 +31,8 @@ Testy: `php artisan test`. Formátovanie: `vendor/bin/pint --dirty`.
 | `operations`, `operation_norms`, `order_operations`, `operation_samples` | katalóg úkonov so všeobecnou normou, normy podľa značky/modelu, úkony na zákazke (snapshot názvu a normy vyriešenej pre dané auto), namerané časy z uzavretých zákaziek aj s modelom pre „tvoj priemer“ |
 | `settings` | hodinová sadzba, účtovanie práce (`labor_billing`: actual / norm) a údaje firmy na doklade |
 
+Prihlásenie (`POST auth/login`) je limitované na `AUTH_LOGIN_PER_MINUTE` pokusov za minútu z jednej IP (predvolene 10, limiter `login` v `AppServiceProvider`). Profil `.env.e2e` (`php artisan … --env=e2e`) má vlastnú SQLite `database/e2e.sqlite`, port 8099 a vyšší limit; používa ho Playwright z `web/e2e`.
+
 Čas práce sa nikdy neukladá ako číslo: vždy je to `started_at`/`ended_at`, takže sumy (`totals` v každej zákazke) sa rátajú zo záznamov. Zákazka má `parts_pricing` (`moc` alebo `nc`): v `totals` je `parts` súčet dielov v zvolených cenách (to platí zákazník), `parts_retail` v MOC a `parts_cost` v NC (diel bez NC sa počíta v MOC). `POST orders/{id}/close` prijíma voliteľné `parts_pricing` a po uzavretí zapíše vzorky časov k úkonom. V `totals` je aj `norm_seconds`, `delta_seconds`, `labor_actual`, `labor_norm` a `labor_billing`. Prehľad (`GET dashboard`) ráta nákup dielov v NC a vracia aj `parts_retail`.
 
 ## Endpointy
@@ -66,3 +68,10 @@ Všetko okrem prihlásenia a verejného reportu vyžaduje hlavičku `Authorizati
 - `APP_URL` musí byť verejná adresa API, fotky sa servírujú z `APP_URL/storage/...`.
 - Frontend môže bežať na inej doméne: API používa Bearer tokeny, takže CORS stačí predvolený (`api/*`, `*`).
 - Časová zóna `Europe/Bratislava` (`APP_TIMEZONE`); API vracia ISO 8601 v UTC, klient zobrazuje lokálny čas.
+
+## Produkcia
+
+- `php artisan app:install` – migrácie, na prázdnej databáze seed katalógu úkonov a vozidiel a východiskových nastavení (`ProductionSeeder`, bez demo dát), odkaz `public/storage`; bezpečné spúšťať pri každom štarte.
+- `php artisan app:owner e-mail "Meno"` – prvý (alebo obnovený) účet majiteľa; kolegov už spravuje majiteľ v appke.
+- Web: `routes/web.php` posiela všetky cesty mimo `/api`, `/storage` a `/up` na `SpaController`, ktorý vráti `public/index.html` (bez cache, aby PWA dostala novú verziu). Build webu do `public/` robí `scripts/build-spa.sh` alebo `Dockerfile`.
+- Za reverznou proxy (Caddy) sú dôverované všetky proxy (`trustProxies('*')`), aby URL fotiek boli `https`.

@@ -114,4 +114,16 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Login Attempts Per Minute
+    |--------------------------------------------------------------------------
+    |
+    | How many POST auth/login calls one IP may make per minute (the E2E
+    | profile raises it so a test run is not locked out).
+    |
+    */
+
+    'login_per_minute' => (int) env('AUTH_LOGIN_PER_MINUTE', 10),
+
 ];

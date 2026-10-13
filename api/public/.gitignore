@@ -1,0 +1,13 @@
+# Build of the web app (scripts/build-spa.sh) – never committed, produced at deploy time.
+/index.html
+/assets/
+/sw.js
+/workbox-*.js
+/registerSW.js
+/manifest.webmanifest
+/apple-touch-icon-180x180.png
+/maskable-icon-512x512.png
+/pwa-*.png
+/favicon.svg
+/icon.svg
+/storage

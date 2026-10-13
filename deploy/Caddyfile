@@ -1,0 +1,8 @@
+# HTTPS for the shop's domain is issued and renewed automatically (Let's Encrypt).
+{$APP_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy app:8080
+}
