@@ -6,3 +6,8 @@
 	}
 	reverse_proxy app:8080
 }
+
+# www.<domain> only redirects; it needs its own DNS record, otherwise Caddy just logs a failed certificate.
+www.{$APP_DOMAIN} {
+	redir https://{$APP_DOMAIN}{uri} permanent
+}
