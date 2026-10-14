@@ -54,10 +54,12 @@ export default function OrderDetail() {
   const mine = user ? runningEntryOf(order, user.id) : null
   const codes = order.diagnostic?.codes ?? []
 
-  const addPhoto = (blob: Blob) => {
+  const addPhotos = (blobs: Blob[]) => {
     const stage: PhotoStage = closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred'
     const n = order.photos.filter(p => p.stage === stage).length + 1
-    void act.run(() => actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n}`, stage }))
+    void act.run(async () => {
+      for (const [i, blob] of blobs.entries()) await actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n + i}`, stage })
+    })
   }
 
   return (
@@ -125,7 +127,7 @@ export default function OrderDetail() {
                   <span className="muted" style={{ fontSize: 11 }}>{p.label}{p.url && <> · <a href={p.url} target="_blank" rel="noreferrer">otvoriť</a></>}</span>
                 </div>
               ))}
-              {!closed && <AddPhotoTile onPick={addPhoto} />}
+              {!closed && <AddPhotoTile onPick={addPhotos} />}
             </div>
           </Blueprint>
 

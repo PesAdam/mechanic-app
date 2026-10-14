@@ -7,7 +7,7 @@ import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
 import { isClosed, isRunning, runningEntryOf, sessionSeconds, totalsOf } from '../lib/calc'
 import { eur, hm, hms } from '../lib/format'
-import { resizeImage } from '../lib/image'
+import { resizeImages } from '../lib/image'
 import { buildTimeline } from '../lib/timeline'
 import { useThemeColor } from '../lib/pwa'
 import type { PhotoStage } from '../lib/types'
@@ -44,10 +44,12 @@ export default function JobDiary() {
   const events = buildTimeline(order, now)
   const brand = settings.data?.business.name ?? 'Dielňa'
 
-  const addPhoto = (blob: Blob) => {
+  const addPhotos = (blobs: Blob[]) => {
     const stage: PhotoStage = closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred'
     const n = order.photos.filter(p => p.stage === stage).length + 1
-    void act.run(() => actions.uploadPhoto(order.id, { blob, label: `${stage === 'pred' ? 'Pred' : stage === 'po' ? 'Po' : 'Počas'} ${n}`, stage }))
+    void act.run(async () => {
+      for (const [i, blob] of blobs.entries()) await actions.uploadPhoto(order.id, { blob, label: `${stage === 'pred' ? 'Pred' : stage === 'po' ? 'Po' : 'Počas'} ${n + i}`, stage })
+    })
   }
 
   return (
@@ -85,8 +87,8 @@ export default function JobDiary() {
           <button className="btn btn-secondary btn-icon" style={{ width: 44, height: 44 }} aria-label="Diagnostika" onClick={() => diagInput.current?.click()} disabled={act.busy}>
             <Download size={18} strokeWidth={1.5} />
           </button>
-          <input ref={photoInput} type="file" accept="image/*" hidden
-            onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { try { addPhoto(await resizeImage(f)) } catch { /* ignore */ } } }} />
+          <input ref={photoInput} type="file" accept="image/*" multiple hidden
+            onChange={async e => { const blobs = await resizeImages(e.target.files); e.target.value = ''; if (blobs.length) addPhotos(blobs) }} />
           <input ref={diagInput} type="file" accept=".pdf,application/pdf,.txt,.csv,.log" hidden
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void act.run(() => actions.uploadDiagnostic(order.id, f)) }} />
         </div>

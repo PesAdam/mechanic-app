@@ -23,3 +23,12 @@ export function resizeImage(file: File, max = 1600, quality = 0.85): Promise<Blo
     img.src = url
   })
 }
+
+/** Downscale every picked photo, skipping files that cannot be read. */
+export async function resizeImages(files: FileList | null): Promise<Blob[]> {
+  const out: Blob[] = []
+  for (const f of Array.from(files ?? [])) {
+    try { out.push(await resizeImage(f)) } catch { /* unreadable file */ }
+  }
+  return out
+}

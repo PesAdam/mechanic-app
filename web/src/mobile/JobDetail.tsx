@@ -59,10 +59,12 @@ export default function JobDetail() {
   const brand = settings.data?.business.name ?? 'Dielňa'
 
   const nextStage = (): PhotoStage => (closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred')
-  const addPhoto = (blob: Blob) => {
+  const addPhotos = (blobs: Blob[]) => {
     const stage = nextStage()
     const n = order.photos.filter(p => p.stage === stage).length + 1
-    void act.run(() => actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n}`, stage }))
+    void act.run(async () => {
+      for (const [i, blob] of blobs.entries()) await actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n + i}`, stage })
+    })
   }
   const toggleTimer = () => void act.run(() => (mine ? actions.stopTimer(order.id) : actions.startTimer(order.id)))
 
@@ -142,7 +144,7 @@ export default function JobDetail() {
                 onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
                     onRemove={closed ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
             ))}
-            {!closed && <AddPhotoTile onPick={addPhoto} />}
+            {!closed && <AddPhotoTile onPick={addPhotos} />}
           </div>
         </section>
 
