@@ -140,7 +140,7 @@ export default function ReportView({ order, settings, now, tools }: Props) {
             </div>
             {b.iban && <div style={{ color: 'var(--color-neutral-800)', lineHeight: 1.5, marginTop: 4 }}>IBAN {b.iban} · VS {vs}</div>}
           </div>
-          <PayBySquare iban={b.iban} amount={t.grand} vs={vs} beneficiary={b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
+          <PayBySquare iban={b.iban} amount={t.grand} vs={vs} beneficiary={b.owner || b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
         </Blueprint>
       </article>
     </div>

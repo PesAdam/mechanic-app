@@ -8,7 +8,7 @@ interface Props {
   amount: number
   /** Variabilný symbol, digits only. */
   vs: string
-  /** Who receives the money – the business name. */
+  /** Account holder shown in the banking app – the owner, else the business name. */
   beneficiary: string
   /** YYYY-MM-DD */
   due?: string
