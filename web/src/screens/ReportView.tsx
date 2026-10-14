@@ -25,7 +25,6 @@ export default function ReportView({ order, settings, now, tools }: Props) {
   const range = timeRange(order, now)
   const photos = order.photos
   const codes = order.diagnostic?.codes ?? []
-  const publicUrl = `${window.location.host}/r/${order.public_token}`
 
   return (
     <div className="report-wrap">
@@ -139,14 +138,7 @@ export default function ReportView({ order, settings, now, tools }: Props) {
               <span className="hd" style={{ fontSize: 18 }}>K úhrade</span>
               <span className="hd" style={{ fontSize: 34, lineHeight: 1 }}>{eur(t.grand)}</span>
             </div>
-            <div style={{ color: 'var(--color-neutral-800)', lineHeight: 1.5, marginTop: 4 }}>
-              {b.iban ? <>IBAN {b.iban} · VS {vs}<br /></> : null}
-              Splatnosť {skDate(addDays(day, DUE_DAYS))} · možná aj platba hotovosťou alebo kartou v dielni
-            </div>
-            <div className="muted" style={{ fontSize: 11, marginTop: 'auto' }}>
-              {[b.owner, b.ico ? `IČO ${b.ico}` : ''].filter(Boolean).join(' · ')}{b.owner || b.ico ? ' · ' : ''}{b.vat_payer ? 'som platiteľom DPH' : 'nie som platiteľom DPH'}. Doklad vystavený elektronicky.
-              <br />Online verzia reportu: {publicUrl}
-            </div>
+            {b.iban && <div style={{ color: 'var(--color-neutral-800)', lineHeight: 1.5, marginTop: 4 }}>IBAN {b.iban} · VS {vs}</div>}
           </div>
           <PayBySquare iban={b.iban} amount={t.grand} vs={vs} beneficiary={b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
         </Blueprint>
