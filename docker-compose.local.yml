@@ -1,0 +1,6 @@
+# Local run on a Mac (plain HTTP on port 8090, no domain or certificate).
+# Enabled by COMPOSE_FILE=docker-compose.yml:docker-compose.local.yml in ./.env
+services:
+  caddy:
+    ports: !override
+      - "8090:80"

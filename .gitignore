@@ -3,3 +3,6 @@
 /vendor
 /composer.json
 /composer.lock
+
+# Production/local secrets for docker compose
+/.env
