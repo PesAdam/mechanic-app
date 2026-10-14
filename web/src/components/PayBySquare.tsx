@@ -1,15 +1,57 @@
+import { useMemo } from 'react'
+import { create } from 'qrcode'
+import { CurrencyCode, PaymentOptions, encode } from 'bysquare/pay'
 import { Corners } from './Blueprint'
 
-/** Placeholder PAY by square code from the design. A real one needs the
- *  bysquare encoding of IBAN, amount and VS — see README "Ďalšie kroky". */
-export default function PayBySquare() {
+interface Props {
+  iban: string
+  amount: number
+  /** Variabilný symbol, digits only. */
+  vs: string
+  /** Who receives the money – the business name. */
+  beneficiary: string
+  /** YYYY-MM-DD */
+  due?: string
+  note?: string
+}
+
+/** PAY by square QR code: banking apps prefill IBAN, amount and VS from it. */
+export default function PayBySquare({ iban, amount, vs, beneficiary, due, note }: Props) {
+  const qr = useMemo(() => {
+    const account = iban.replace(/\s+/g, '').toUpperCase()
+    if (!account) return { error: 'Doplňte IBAN v Nastaveniach, aby sa tu zobrazil QR kód na platbu.' }
+    if (!(amount > 0)) return { error: 'Nie je čo uhradiť.' }
+    try {
+      const text = encode({
+        payments: [{
+          type: PaymentOptions.PaymentOrder,
+          amount: Math.round(amount * 100) / 100,
+          currencyCode: CurrencyCode.EUR,
+          variableSymbol: vs,
+          paymentDueDate: due?.replace(/-/g, ''),
+          paymentNote: note,
+          beneficiary: { name: beneficiary || 'Dielňa' },
+          bankAccounts: [{ iban: account }],
+        }],
+      })
+      return { modules: create(text, { errorCorrectionLevel: 'M' }).modules }
+    } catch {
+      return { error: 'IBAN v Nastaveniach nie je platný, QR kód sa nedá vytvoriť.' }
+    }
+  }, [iban, amount, vs, beneficiary, due, note])
+
+  if (!qr.modules) return <div className="muted" style={{ fontSize: 12, maxWidth: 180, textAlign: 'center', alignSelf: 'center' }}>{qr.error}</div>
+
+  const size = qr.modules.size
+  let path = ''
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (qr.modules.get(y, x)) path += `M${x} ${y}h1v1h-1z`
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <div className="blueprint r-qr" aria-label="PAY by square QR kód (ukážka)">
+      <div className="blueprint r-qr">
         <Corners />
-        <svg viewBox="0 0 21 21" width="148" height="148" shapeRendering="crispEdges" fill="var(--color-text)" role="img" aria-hidden="true">
-          <path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM14 0h7v7h-7zM15 1v5h5V1zM16 2h3v3h-3zM0 14h7v7H0zM1 15v5h5v-5zM2 16h3v3H2z" fillRule="evenodd" />
-          <path d="M8 0h1v1H8zM10 0h1v2h-1zM12 1h1v1h-1zM8 2h2v1H8zM11 3h1v1h-1zM8 4h1v2H8zM10 5h2v1h-2zM12 6h1v1h-1zM0 8h1v1H0zM2 8h2v1H2zM5 8h1v1H5zM7 8h1v2H7zM9 8h2v1H9zM12 8h1v1h-1zM14 8h2v1h-2zM17 8h1v1h-1zM19 8h2v1h-2zM1 10h1v1H1zM3 10h1v1H3zM6 10h1v1H6zM9 10h1v2H9zM11 10h2v1h-2zM15 10h1v1h-1zM17 10h2v1h-2zM20 10h1v1h-1zM0 12h2v1H0zM4 12h2v1H4zM7 12h1v1H7zM10 12h3v1h-3zM14 12h1v2h-1zM16 12h1v1h-1zM18 12h3v1h-3zM8 14h2v1H8zM11 14h1v1h-1zM13 14h1v1h-1zM16 14h2v1h-2zM19 14h1v1h-1zM8 16h1v1H8zM10 16h2v1h-2zM13 16h2v1h-2zM17 16h1v2h-1zM20 16h1v1h-1zM9 18h1v1H9zM11 18h1v1h-1zM14 18h2v1h-2zM19 18h2v1h-2zM8 20h2v1H8zM12 20h1v1h-1zM15 20h1v1h-1zM18 20h1v1h-1z" />
+        <svg viewBox={`0 0 ${size} ${size}`} width="148" height="148" shapeRendering="crispEdges" role="img" aria-label="PAY by square QR kód na platbu">
+          <path d={path} fill="#000" />
         </svg>
       </div>
       <div className="kicker">PAY by square</div>

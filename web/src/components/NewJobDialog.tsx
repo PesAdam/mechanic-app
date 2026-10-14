@@ -20,6 +20,7 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
   const [kmText, setKm] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [summary, setSummary] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +28,7 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
   // VIN wins when typed (it is more specific); the plate otherwise.
   const lookupQ = open ? (vin.trim().length >= 3 ? vin.trim() : plate.trim()) : ''
 
-  const reset = () => { setPlate(''); setVin(''); setVehicle(EMPTY_VEHICLE); setCarId(null); setKm(''); setName(''); setPhone(''); setSummary(''); setError(null); setPickerStart(undefined); setPickerKey(k => k + 1) }
+  const reset = () => { setPlate(''); setVin(''); setVehicle(EMPTY_VEHICLE); setCarId(null); setKm(''); setName(''); setPhone(''); setEmail(''); setSummary(''); setError(null); setPickerStart(undefined); setPickerKey(k => k + 1) }
 
   const useMatch = (m: VehicleMatch) => {
     setCarId(m.car.id)
@@ -39,6 +40,7 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
     setKm(String(m.car.km))
     setName(m.customer.name)
     setPhone(m.customer.phone ?? '')
+    setEmail(m.customer.email ?? '')
   }
 
   const useVin = (info: VinInfo, model?: VinInfo['models'][number]) => {
@@ -54,7 +56,7 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
     setError(null)
     try {
       const order = await createOrder({
-        customer: { name: name.trim(), phone: phone.trim() || undefined },
+        customer: { name: name.trim(), phone: phone.trim() || undefined, email: email.trim() || undefined },
         car: { id: carId ?? undefined, make: vehicle.make, model: vehicle.model, engine: vehicle.engine || undefined, plate: plate.trim().toUpperCase(), vin: vin.trim().toUpperCase() || undefined, km: parseInt(kmText, 10) || 0 },
         summary: summary.trim(),
       })
@@ -87,7 +89,12 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
           <VehiclePicker key={pickerKey} value={vehicle} onChange={setVehicle} startAt={pickerStart} />
         </div>
         <div className="muted" style={{ fontSize: 11 }}>Neznáma značka, model alebo motorizácia sa založia do katalógu; normy úkonov sa dajú nastaviť pre ne v Úkonoch.</div>
+        <div className="field"><label htmlFor="nj-km">Stav tachometra (km)</label><input id="nj-km" className="input" type="number" inputMode="numeric" min={0} value={kmText} onChange={e => setKm(e.target.value)} placeholder="napr. 184500" /></div>
         <div className="field"><label htmlFor="nj-name">Zákazník</label><input id="nj-name" className="input" value={name} onChange={e => setName(e.target.value)} placeholder="Ján Kováč" required /></div>
+        <div className="row">
+          <div className="field"><label htmlFor="nj-phone">Telefón</label><input id="nj-phone" className="input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="voliteľné" /></div>
+          <div className="field"><label htmlFor="nj-email">Email</label><input id="nj-email" className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="voliteľné" /></div>
+        </div>
         <div className="field"><label htmlFor="nj-summary">Čo treba spraviť</label><input id="nj-summary" className="input" value={summary} onChange={e => setSummary(e.target.value)} placeholder="Brzdy vpredu + snímač EGR" required /></div>
         {error && <div className="form-error" role="alert">{error}</div>}
       </form>

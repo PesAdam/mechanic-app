@@ -43,7 +43,6 @@ Demo účty (heslo `heslo1234`): `adam@dielna.sk` (majiteľ), `marek@dielna.sk`,
 
 ## Ďalšie kroky
 
-- Skutočný PAY by square kód na doklade (bysquare kódovanie IBAN + suma + VS).
 - Offline fronta zápisov (stopky a diely bez signálu, odoslanie po pripojení).
 - Sekcie Autá a Zákazníci, história áut podľa VIN/ŠPZ.
 - Parsovanie chybových kódov priamo z PDF protokolu.

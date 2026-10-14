@@ -148,7 +148,7 @@ export default function ReportView({ order, settings, now, tools }: Props) {
               <br />Online verzia reportu: {publicUrl}
             </div>
           </div>
-          <PayBySquare />
+          <PayBySquare iban={b.iban} amount={t.grand} vs={vs} beneficiary={b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
         </Blueprint>
       </article>
     </div>

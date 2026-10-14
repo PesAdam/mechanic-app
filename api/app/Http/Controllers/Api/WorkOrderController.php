@@ -14,6 +14,7 @@ use App\Services\OperationSamples;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -97,9 +98,21 @@ class WorkOrderController extends Controller
             'status' => ['sometimes', Rule::enum(OrderStatus::class)],
             'parts_pricing' => ['sometimes', Rule::enum(PartsPricing::class)],
             'mechanic_id' => ['sometimes', 'nullable', 'exists:users,id'],
+            'km' => ['sometimes', 'integer', 'min:0', 'max:9999999'],
+            'customer.name' => ['sometimes', 'string', 'max:120'],
+            'customer.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'customer.email' => ['sometimes', 'nullable', 'email', 'max:120'],
         ]);
 
-        $order->update($data);
+        DB::transaction(function () use ($order, $data): void {
+            if (array_key_exists('km', $data)) {
+                $order->car->update(['km' => $data['km']]);
+            }
+            if (isset($data['customer'])) {
+                $order->customer->update($data['customer']);
+            }
+            $order->update(Arr::except($data, ['km', 'customer']));
+        });
 
         return new WorkOrderResource($this->loaded($order));
     }

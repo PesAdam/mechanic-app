@@ -190,6 +190,27 @@ export default function OrderDetail() {
               <input id="od-summary" className="input" key={order.summary} defaultValue={order.summary} disabled={act.busy}
                 onBlur={e => { const v = e.target.value.trim(); if (v && v !== order.summary) void act.run(() => actions.updateOrder(order.id, { summary: v })) }} />
             </div>
+            <div className="field"><label htmlFor="od-km">Stav tachometra (km)</label>
+              <input id="od-km" className="input" type="number" inputMode="numeric" min={0} key={order.car.km} defaultValue={order.car.km || ''} placeholder="napr. 184500" disabled={act.busy}
+                onBlur={e => { const v = parseInt(e.target.value, 10) || 0; if (v >= 0 && v !== order.car.km) void act.run(() => actions.updateOrder(order.id, { km: v })) }} />
+            </div>
+          </Blueprint>
+
+          <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
+            <span className="card-kicker">Zákazník</span>
+            <div className="field"><label htmlFor="od-cname">Meno</label>
+              <input id="od-cname" className="input" key={order.customer.name} defaultValue={order.customer.name} disabled={act.busy}
+                onBlur={e => { const v = e.target.value.trim(); if (v && v !== order.customer.name) void act.run(() => actions.updateOrder(order.id, { customer: { name: v } })) }} />
+            </div>
+            <div className="field"><label htmlFor="od-cphone">Telefón</label>
+              <input id="od-cphone" className="input" type="tel" key={order.customer.phone ?? ''} defaultValue={order.customer.phone ?? ''} placeholder="+421 9xx xxx xxx" disabled={act.busy}
+                onBlur={e => { const v = e.target.value.trim(); if (v !== (order.customer.phone ?? '')) void act.run(() => actions.updateOrder(order.id, { customer: { phone: v || null } })) }} />
+            </div>
+            <div className="field"><label htmlFor="od-cemail">Email</label>
+              <input id="od-cemail" className="input" type="email" key={order.customer.email ?? ''} defaultValue={order.customer.email ?? ''} placeholder="meno@email.sk" disabled={act.busy}
+                onBlur={e => { const v = e.target.value.trim(); if (v !== (order.customer.email ?? '')) void act.run(() => actions.updateOrder(order.id, { customer: { email: v || null } })) }} />
+            </div>
+            <div className="muted" style={{ fontSize: 11 }}>Zákazník sa ukladá k autu – pri ďalšej návšteve sa podľa ŠPZ/VIN predvyplní.</div>
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 8 }}>

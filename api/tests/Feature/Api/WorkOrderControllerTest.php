@@ -125,4 +125,32 @@ class WorkOrderControllerTest extends TestCase
         $this->assertSame(now()->toDateTimeString(), $entry->fresh()->ended_at->toDateTimeString());
         $this->assertDatabaseHas('work_orders', ['id' => $order->id, 'status' => 'unpaid']);
     }
+
+    public function test_update_saves_mileage_and_customer_details(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create();
+
+        $response = $this->patchJson("/api/v1/orders/{$order->id}", [
+            'km' => 184500,
+            'customer' => ['name' => 'Jakub Jakubík', 'phone' => '+421 900 123 456', 'email' => 'jakub@example.sk'],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.car.km', 184500)
+            ->assertJsonPath('data.customer.phone', '+421 900 123 456')
+            ->assertJsonPath('data.customer.email', 'jakub@example.sk');
+        $this->assertDatabaseHas('cars', ['id' => $order->car_id, 'km' => 184500]);
+        $this->assertDatabaseHas('customers', ['id' => $order->customer_id, 'name' => 'Jakub Jakubík']);
+    }
+
+    public function test_update_rejects_negative_mileage_and_invalid_email(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create();
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['km' => -5, 'customer' => ['email' => 'nie-je-email']])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['km', 'customer.email']);
+    }
 }
