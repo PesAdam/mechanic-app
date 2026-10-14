@@ -139,7 +139,8 @@ export default function JobDetail() {
           <div className="photo-grid">
             {order.photos.map(p => (
               <ImageSlot key={p.id} src={p.url} label={p.label} style={{ aspectRatio: '1' }}
-                onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))} />
+                onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
+                    onRemove={closed ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
             ))}
             {!closed && <AddPhotoTile onPick={addPhoto} />}
           </div>

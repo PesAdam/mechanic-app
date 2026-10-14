@@ -120,7 +120,8 @@ export default function OrderDetail() {
               {order.photos.map(p => (
                 <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <ImageSlot src={p.url} label={p.label} style={{ aspectRatio: '1', width: '100%', flex: 'none' }}
-                    onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))} />
+                    onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
+                    onRemove={closed ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
                   <span className="muted" style={{ fontSize: 11 }}>{p.label}{p.url && <> · <a href={p.url} target="_blank" rel="noreferrer">otvoriť</a></>}</span>
                 </div>
               ))}

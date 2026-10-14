@@ -111,6 +111,7 @@ export function useOrderActions() {
       if (p.photo_id) form.append('photo_id', String(p.photo_id))
       return call(`/orders/${id}/photos`, { method: 'POST', form })
     },
+    removePhoto: (photoId: number) => call(`/photos/${photoId}`, { method: 'DELETE' }),
     uploadDiagnostic: (id: number, file: File) => {
       const form = new FormData()
       form.append('file', file, file.name)
