@@ -14,14 +14,14 @@ interface Props {
   onRemove?: () => void
 }
 
-/** A duotoned, blueprint-framed photo slot. Empty slots show their label. */
+/** A blueprint-framed photo slot. Empty slots show their label. */
 export default function ImageSlot({ src, label, style, className = '', onPick, onRemove }: Props) {
   const input = useRef<HTMLInputElement>(null)
   const clickable = !!onPick
   const open = () => input.current?.click()
   return (
     <div
-      className={`blueprint duotone img-slot ${className}`.trim()}
+      className={`blueprint img-slot ${className}`.trim()}
       style={style}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
