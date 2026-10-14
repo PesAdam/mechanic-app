@@ -21,7 +21,8 @@ export default function ReportView({ order, settings, now, tools }: Props) {
   const day = dateOf(order.closed_at ?? order.received_at ?? new Date(now).toISOString())
   const year = day.slice(0, 4)
   const docNo = `${year}-${order.number}`
-  const vs = `${year}${order.number}`
+  // Variabilný symbol zatiaľ vypnutý:
+  // const vs = `${year}${order.number}`
   const range = timeRange(order, now)
   const photos = order.photos
   const codes = order.diagnostic?.codes ?? []
@@ -138,9 +139,9 @@ export default function ReportView({ order, settings, now, tools }: Props) {
               <span className="hd" style={{ fontSize: 18 }}>K úhrade</span>
               <span className="hd" style={{ fontSize: 34, lineHeight: 1 }}>{eur(t.grand)}</span>
             </div>
-            {b.iban && <div style={{ color: 'var(--color-neutral-800)', lineHeight: 1.5, marginTop: 4 }}>IBAN {b.iban} · VS {vs}</div>}
+            {b.iban && <div style={{ color: 'var(--color-neutral-800)', lineHeight: 1.5, marginTop: 4 }}>IBAN {b.iban}{/* · VS {vs} */}</div>}
           </div>
-          <PayBySquare iban={b.iban} amount={t.grand} vs={vs} beneficiary={b.owner || b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
+          <PayBySquare iban={b.iban} amount={t.grand} /* vs={vs} */ beneficiary={b.owner || b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
         </Blueprint>
       </article>
     </div>

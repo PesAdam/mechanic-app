@@ -6,8 +6,8 @@ import { Corners } from './Blueprint'
 interface Props {
   iban: string
   amount: number
-  /** Variabilný symbol, digits only. */
-  vs: string
+  /** Variabilný symbol, digits only. Optional – the report leaves it out for now. */
+  vs?: string
   /** Account holder shown in the banking app – the owner, else the business name. */
   beneficiary: string
   /** YYYY-MM-DD */
@@ -15,7 +15,7 @@ interface Props {
   note?: string
 }
 
-/** PAY by square QR code: banking apps prefill IBAN, amount and VS from it. */
+/** PAY by square QR code: banking apps prefill IBAN, amount (and VS when given) from it. */
 export default function PayBySquare({ iban, amount, vs, beneficiary, due, note }: Props) {
   const qr = useMemo(() => {
     const account = iban.replace(/\s+/g, '').toUpperCase()
@@ -55,7 +55,7 @@ export default function PayBySquare({ iban, amount, vs, beneficiary, due, note }
         </svg>
       </div>
       <div className="kicker">PAY by square</div>
-      <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>Naskenujte v bankovej appke · suma a VS sú predvyplnené</div>
+      <div className="muted" style={{ fontSize: 11, textAlign: 'center' }}>Naskenujte v bankovej appke · {vs ? 'suma a VS sú predvyplnené' : 'suma je predvyplnená'}</div>
     </div>
   )
 }
