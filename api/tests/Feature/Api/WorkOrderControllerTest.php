@@ -109,6 +109,37 @@ class WorkOrderControllerTest extends TestCase
             ->assertJsonPath('data.totals.parts', 100);
     }
 
+    public function test_total_can_be_overridden_and_keeps_the_original(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create(['parts_pricing' => 'moc']);
+        Part::factory()->for($order)->create(['price' => 100, 'purchase_price' => 70]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['total_override' => 80])
+            ->assertOk()
+            ->assertJsonPath('data.total_override', 80)
+            ->assertJsonPath('data.total_original', 100)
+            ->assertJsonPath('data.totals.grand', 80)
+            ->assertJsonPath('data.totals.grand_computed', 100);
+        $this->assertDatabaseHas('work_orders', ['id' => $order->id, 'total_override' => 80, 'total_original' => 100]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['total_override' => null])
+            ->assertOk()
+            ->assertJsonPath('data.total_override', null)
+            ->assertJsonPath('data.total_original', null)
+            ->assertJsonPath('data.totals.grand', 100);
+    }
+
+    public function test_total_override_rejects_a_negative_amount(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create();
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['total_override' => -5])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('total_override');
+    }
+
     public function test_close_stops_running_stints_and_marks_the_order_unpaid(): void
     {
         $this->freezeTime();

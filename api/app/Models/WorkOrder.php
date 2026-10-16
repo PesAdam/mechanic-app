@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 /** A zákazka. Named WorkOrder because `jobs` belongs to the queue. */
-#[Fillable(['number', 'customer_id', 'car_id', 'summary', 'lift', 'status', 'parts_pricing', 'mechanic_id', 'received_at', 'closed_at', 'public_token'])]
+#[Fillable(['number', 'customer_id', 'car_id', 'summary', 'lift', 'status', 'parts_pricing', 'total_original', 'total_override', 'mechanic_id', 'received_at', 'closed_at', 'public_token'])]
 class WorkOrder extends Model
 {
     /** @use HasFactory<WorkOrderFactory> */
@@ -26,6 +26,8 @@ class WorkOrder extends Model
         return [
             'status' => OrderStatus::class,
             'parts_pricing' => PartsPricing::class,
+            'total_original' => 'decimal:2',
+            'total_override' => 'decimal:2',
             'received_at' => 'datetime',
             'closed_at' => 'datetime',
         ];

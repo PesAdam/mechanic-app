@@ -11,6 +11,8 @@ use App\Models\Customer;
 use App\Models\WorkOrder;
 use App\Services\CarCatalog;
 use App\Services\OperationSamples;
+use App\Services\OrderTotals;
+use App\Services\Settings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -97,6 +99,7 @@ class WorkOrderController extends Controller
             'lift' => ['sometimes', 'nullable', 'string', 'max:32'],
             'status' => ['sometimes', Rule::enum(OrderStatus::class)],
             'parts_pricing' => ['sometimes', Rule::enum(PartsPricing::class)],
+            'total_override' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'mechanic_id' => ['sometimes', 'nullable', 'exists:users,id'],
             'km' => ['sometimes', 'integer', 'min:0', 'max:9999999'],
             'customer.name' => ['sometimes', 'string', 'max:120'],
@@ -112,6 +115,11 @@ class WorkOrderController extends Controller
                 $order->customer->update($data['customer']);
             }
             $order->update(Arr::except($data, ['km', 'customer']));
+            if (array_key_exists('total_override', $data)) {
+                // Keep the calculated total next to the edited one so the zľava stays visible.
+                $original = $data['total_override'] === null ? null : OrderTotals::compute($this->loaded($order), Settings::rate())['grand_computed'];
+                $order->update(['total_original' => $original]);
+            }
         });
 
         return new WorkOrderResource($this->loaded($order));

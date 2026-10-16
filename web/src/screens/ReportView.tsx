@@ -132,6 +132,7 @@ export default function ReportView({ order, settings, now, tools }: Props) {
             <div className="r-k">Doklad č. {docNo} · {b.vat_payer ? 'platiteľ DPH' : 'neplatiteľ DPH'}</div>
             <div className="r-line"><span>Práca</span><span>{eur(t.labor)}</span></div>
             <div className="r-line"><span>Diely</span><span>{eur(t.parts)}</span></div>
+            {t.grand !== t.grand_computed && <div className="r-line" style={{ color: 'var(--color-bad)' }}><span>{t.grand < t.grand_computed ? 'Zľava' : 'Navýšenie'}</span><span>{t.grand < t.grand_computed ? '−' : '+'}{eur(Math.abs(t.grand - t.grand_computed))}</span></div>}
             <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8, alignItems: 'baseline' }}>
               <span className="hd" style={{ fontSize: 18 }}>K úhrade</span>
               <span className="hd" style={{ fontSize: 34, lineHeight: 1 }}>{eur(t.grand)}</span>

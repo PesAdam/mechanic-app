@@ -10,11 +10,11 @@ const part = (over: Partial<Part>): Part => ({ id: 1, name: 'Diel', meta: null, 
 
 /** A bare order; tests override what they measure. */
 const order = (over: Partial<Order>): Order => ({
-  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', summary: 'Brzdy', lift: null, received_at: null, closed_at: null, public_token: 't',
+  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, summary: 'Brzdy', lift: null, received_at: null, closed_at: null, public_token: 't',
   customer: { id: 1, name: 'Ján Kováč', phone: null, email: null },
   car: { id: 1, make: 'Škoda', model: 'Octavia III', engine: '2.0 TDI', car_make_id: 1, car_model_id: 1, car_engine_id: 1, logo_url: null, plate: 'ZA 412 KL', vin: null, km: 0 },
   mechanic: null, parts: [], photos: [], diagnostic: null, work_entries: [], operations: [],
-  totals: { seconds: 0, norm_seconds: 0, delta_seconds: null, labor: 0, labor_actual: 0, labor_norm: 0, labor_billing: 'actual', parts: 0, parts_retail: 0, parts_cost: 0, parts_pricing: 'moc', grand: 0 },
+  totals: { seconds: 0, norm_seconds: 0, delta_seconds: null, labor: 0, labor_actual: 0, labor_norm: 0, labor_billing: 'actual', parts: 0, parts_retail: 0, parts_cost: 0, parts_pricing: 'moc', grand_computed: 0, grand: 0 },
   ...over,
 })
 
@@ -79,6 +79,14 @@ describe('totalsOf', () => {
     const nc = totalsOf({ ...o, parts_pricing: 'nc' }, 30, NOW)
     expect(nc.parts).toBe(130)
     expect(nc.grand).toBeCloseTo(165)
+  })
+
+  it('bills the hand-edited total but keeps the calculated one', () => {
+    const o = order({ parts: [part({})], total_original: 100, total_override: 85 })
+    const t = totalsOf(o, 30, NOW)
+    expect(t.grand_computed).toBe(100)
+    expect(t.grand).toBe(85)
+    expect(totalsOf({ ...o, total_override: null }, 30, NOW).grand).toBe(100)
   })
 })
 

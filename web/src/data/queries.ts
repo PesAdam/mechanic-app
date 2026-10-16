@@ -127,7 +127,7 @@ export function useOrderActions() {
     addOperation: (id: number, body: { operation_id: number } | { name: string; norm_minutes: number }) => call(`/orders/${id}/operations`, { method: 'POST', json: body }),
     updateOrderOperation: (opId: number, patch: { done?: boolean; name?: string; norm_minutes?: number }) => call(`/order-operations/${opId}`, { method: 'PATCH', json: patch }),
     removeOrderOperation: (opId: number) => call(`/order-operations/${opId}`, { method: 'DELETE' }),
-    updateOrder: (id: number, patch: { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null } }) =>
+    updateOrder: (id: number, patch: { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null } }) =>
       call(`/orders/${id}`, { method: 'PATCH', json: patch }),
     createOrder: async (payload: NewOrderPayload) => {
       const o = await api<{ data: Order }>('/orders', { method: 'POST', json: payload }).then(unwrap)

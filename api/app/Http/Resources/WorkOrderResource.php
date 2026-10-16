@@ -24,6 +24,8 @@ class WorkOrderResource extends JsonResource
             'number' => $this->number,
             'status' => $this->status->value,
             'parts_pricing' => $this->parts_pricing->value,
+            'total_original' => $this->total_original !== null ? (float) $this->total_original : null,
+            'total_override' => $this->total_override !== null ? (float) $this->total_override : null,
             'summary' => $this->summary,
             'lift' => $this->lift,
             'received_at' => $this->received_at?->toISOString(),

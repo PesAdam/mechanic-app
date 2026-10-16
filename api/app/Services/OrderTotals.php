@@ -13,9 +13,10 @@ final class OrderTotals
     /**
      * `parts` is what the customer is billed (MOC or NC per the order's parts_pricing);
      * `parts_retail` and `parts_cost` are both kept for the margin.
+     * `grand` is the hand-edited total when one is set (zľava), `grand_computed` always the calculated one.
      * `labor` follows the labor_billing setting: measured time, or norm hours when the order has jobs with norms.
      *
-     * @return array{seconds: int, norm_seconds: int, delta_seconds: int|null, labor: float, labor_actual: float, labor_norm: float, labor_billing: string, parts: float, parts_retail: float, parts_cost: float, parts_pricing: string, grand: float}
+     * @return array{seconds: int, norm_seconds: int, delta_seconds: int|null, labor: float, labor_actual: float, labor_norm: float, labor_billing: string, parts: float, parts_retail: float, parts_cost: float, parts_pricing: string, grand_computed: float, grand: float}
      */
     public static function compute(WorkOrder $order, float $rate, ?CarbonInterface $now = null, ?string $billing = null): array
     {
@@ -47,7 +48,8 @@ final class OrderTotals
             'parts_retail' => $retail,
             'parts_cost' => $cost,
             'parts_pricing' => $pricing->value,
-            'grand' => round($labor + $parts, 2),
+            'grand_computed' => $computed = round($labor + $parts, 2),
+            'grand' => $order->total_override !== null ? (float) $order->total_override : $computed,
         ];
     }
 }

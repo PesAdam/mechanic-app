@@ -44,7 +44,8 @@ export function totalsOf(o: Order, rate: number, now: number, billing: LaborBill
   return {
     seconds, norm_seconds, delta_seconds: norm_seconds > 0 ? norm_seconds - seconds : null,
     labor, labor_actual, labor_norm, labor_billing: (byNorm ? 'norm' : 'actual') as LaborBilling,
-    parts, parts_retail, parts_cost, grand: labor + parts,
+    // A hand-edited total (zľava) wins over the calculated one.
+    parts, parts_retail, parts_cost, grand_computed: labor + parts, grand: o.total_override ?? labor + parts,
   }
 }
 

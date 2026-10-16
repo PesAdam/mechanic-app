@@ -61,7 +61,7 @@ export interface Diagnostic { id: number; file_name: string; file_url: string | 
 export interface Totals {
   seconds: number; norm_seconds: number; delta_seconds: number | null
   labor: number; labor_actual: number; labor_norm: number; labor_billing: LaborBilling
-  parts: number; parts_retail: number; parts_cost: number; parts_pricing: PartsPricing; grand: number
+  parts: number; parts_retail: number; parts_cost: number; parts_pricing: PartsPricing; grand_computed: number; grand: number
 }
 
 export interface Order {
@@ -69,6 +69,9 @@ export interface Order {
   number: string
   status: OrderStatus
   parts_pricing: PartsPricing
+  /** Hand-edited total (zľava) and the calculated total it replaced; both null without an edit. */
+  total_original: number | null
+  total_override: number | null
   summary: string
   lift: string | null
   received_at: string | null
