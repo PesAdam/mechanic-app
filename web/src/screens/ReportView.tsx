@@ -63,10 +63,8 @@ export default function ReportView({ order, settings, now, tools }: Props) {
         <section>
           <h3><span>01</span>Fotodokumentácia</h3>
           <div className="r-photos">
-            {Array.from({ length: Math.max(5, photos.length) }, (_, i) => {
-              const p = photos[i]
-              return <ImageSlot key={p?.id ?? `empty-${i}`} src={p?.url} label={p?.label ?? (i === 0 ? 'Auto zákazníka' : 'Fotka')} />
-            })}
+            {photos.length === 0 && <ImageSlot label="Auto zákazníka" />}
+            {photos.map(p => <ImageSlot key={p.id} src={p.url} label={p.label ?? 'Fotka'} />)}
           </div>
         </section>
 
