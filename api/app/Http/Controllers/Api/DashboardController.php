@@ -84,6 +84,8 @@ class DashboardController extends Controller
         $withNorms = $closed->filter(fn (WorkOrder $o) => $o->operations->isNotEmpty());
         $normSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => (int) $o->operations->sum('norm_minutes') * 60);
         $actualSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['seconds']);
+        $paid = $closed->where('status', OrderStatus::Done);
+        $paidSum = $paid->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['grand']);
         $due = $unpaid->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['grand']);
 
         $mechanics = User::query()->where('is_active', true)->orderBy('name')->get()
@@ -104,6 +106,8 @@ class DashboardController extends Controller
                 'labor' => round($hours * $rate, 2),
                 'billed' => round($billed, 2),
                 'margin' => $billed > 0 ? (int) round((1 - $partsSum / $billed) * 100) : null,
+                'paid' => round($paidSum, 2),
+                'paid_count' => $paid->count(),
                 'due' => round($due, 2),
                 'due_count' => $unpaid->count(),
                 'norm_hours' => round($normSeconds / 3600, 1),

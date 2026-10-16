@@ -52,6 +52,22 @@ class DashboardControllerTest extends TestCase
             ->assertJsonPath('avg_hours_per_order', 1.8);
     }
 
+    public function test_paid_counts_settled_orders_closed_inside_the_period_at_their_billed_total(): void
+    {
+        $this->travelTo('2026-10-14 12:00:00');
+        Sanctum::actingAs(User::factory()->create());
+        WorkOrder::factory()->create(['status' => 'done', 'closed_at' => '2026-10-13 12:00:00', 'total_original' => 40, 'total_override' => 30]);
+        WorkOrder::factory()->create(['status' => 'done', 'closed_at' => '2026-10-01 12:00:00', 'total_override' => 99]);
+        WorkOrder::factory()->unpaid()->create(['closed_at' => '2026-10-12 12:00:00', 'total_override' => 20]);
+
+        $this->getJson('/api/v1/dashboard?period=week')
+            ->assertOk()
+            ->assertJsonPath('kpi.billed', 50)
+            ->assertJsonPath('kpi.paid', 30)
+            ->assertJsonPath('kpi.paid_count', 1)
+            ->assertJsonPath('kpi.due', 20);
+    }
+
     public function test_unknown_period_returns_422(): void
     {
         Sanctum::actingAs(User::factory()->create());

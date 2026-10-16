@@ -97,7 +97,7 @@ export interface DashboardData {
   period: Period
   label: string
   rate: number
-  kpi: { parts: number; parts_retail: number; active_days: number; hours: number; labor: number; billed: number; margin: number | null; due: number; due_count: number; norm_hours: number; efficiency: number | null }
+  kpi: { parts: number; parts_retail: number; active_days: number; hours: number; labor: number; billed: number; margin: number | null; paid: number; paid_count: number; due: number; due_count: number; norm_hours: number; efficiency: number | null }
   bars: { label: string; labor: number; parts: number }[]
   mechanics: { id: number; name: string; hours: number }[]
   avg_hours_per_order: number

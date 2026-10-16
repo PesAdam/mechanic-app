@@ -53,6 +53,7 @@ export default function Dashboard() {
         <Kpi k="Hodiny pri autách" v={d ? hoursSk(d.kpi.hours) : '…'} m={d ? `${eur(d.kpi.labor)} práca` : ''}
           extra={d && d.kpi.efficiency !== null ? <span className={d.kpi.efficiency >= 100 ? 'norm-ok' : 'norm-bad'}> · efektivita {d.kpi.efficiency} % (norma {hoursSk(d.kpi.norm_hours)})</span> : null} />
         <Kpi k="Fakturované" v={d ? eur(d.kpi.billed) : '…'} m={d ? (d.kpi.margin === null ? 'bez uzavretých zákaziek' : `marža ${d.kpi.margin} %`) : ''} />
+        <Kpi k="Zaplatené" v={d ? eur(d.kpi.paid) : '…'} m={d ? `${d.kpi.paid_count} ${plural(d.kpi.paid_count, 'doklad uhradený', 'doklady uhradené', 'dokladov uhradených')}` : ''} />
         <Kpi k="Zostáva zaplatiť" v={d ? eur(d.kpi.due) : '…'} m={d ? `${d.kpi.due_count} ${plural(d.kpi.due_count, 'doklad neuhradený', 'doklady neuhradené', 'dokladov neuhradených')}` : ''} accent />
       </div>
 
