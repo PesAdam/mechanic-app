@@ -63,12 +63,11 @@ export default function ReportView({ order, settings, now, tools }: Props) {
         <section>
           <h3><span>01</span>Fotodokumentácia</h3>
           <div className="r-photos">
-            {Array.from({ length: 5 }, (_, i) => {
+            {Array.from({ length: Math.max(5, photos.length) }, (_, i) => {
               const p = photos[i]
               return <ImageSlot key={p?.id ?? `empty-${i}`} src={p?.url} label={p?.label ?? (i === 0 ? 'Auto zákazníka' : 'Fotka')} />
             })}
           </div>
-          {photos.length > 5 && <div className="muted" style={{ marginTop: 8 }}>+ {photos.length - 5} ďalších fotiek v online verzii</div>}
         </section>
 
         <section>
