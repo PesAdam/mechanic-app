@@ -33,7 +33,7 @@ const persister = createSyncStoragePersister({ storage: safeStorage, key: 'mecha
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 7 * DAY, buster: 'v3' }}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 7 * DAY, buster: 'v4' }}>
       <BrowserRouter>
         <AuthProvider>
           <App />
