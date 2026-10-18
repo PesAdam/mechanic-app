@@ -6,9 +6,10 @@ namespace App\Support;
  * Offline VIN decoder. Standard part: manufacturer (WMI, chars 1–3). Maker-specific
  * part: model year (char 10, only for makers that encode it) and the model /
  * generation, which lives in the VDS (chars 4–9) in each maker's own scheme.
- * Covered: VW group (chars 7–8), Mercedes (series 4–6), Renault, Dacia, Peugeot,
- * Citroën, Opel, Fiat, Alfa Romeo, Volvo, Porsche, Land Rover, Jaguar, Tesla, Jeep.
- * Everything else gets make (+ year where encoded); the model is a hint, never gospel.
+ *
+ * Every maker is a SCHEMES entry: the character windows to try (1-based start, length)
+ * and the code table; a few makers need a rule on top (special()). Everything else
+ * gets make (+ year where encoded); the model is a hint, never gospel.
  */
 final class VinDecoder
 {
@@ -31,6 +32,7 @@ final class VinDecoder
         'SHH' => 'Honda', 'JHM' => 'Honda', 'NLA' => 'Honda',
         'JMZ' => 'Mazda', 'JM1' => 'Mazda',
         'SJN' => 'Nissan', 'VSK' => 'Nissan', 'JN1' => 'Nissan',
+        'JNK' => 'Infiniti', 'JNR' => 'Infiniti', 'SJK' => 'Infiniti',
         'TSM' => 'Suzuki', 'JSA' => 'Suzuki', 'MMS' => 'Suzuki',
         'YV1' => 'Volvo', 'YV4' => 'Volvo', 'LVY' => 'Volvo',
         'JMB' => 'Mitsubishi', 'JA3' => 'Mitsubishi',
@@ -50,23 +52,27 @@ final class VinDecoder
      * code), BMW, Ford, Toyota, Renault, PSA, Dacia, Fiat, Nissan, Suzuki, Mini put
      * something else there, so they are deliberately left out.
      */
-    private const MODEL_YEAR_MAKES = ['Škoda', 'Volkswagen', 'Audi', 'Seat', 'Cupra', 'Opel', 'Hyundai', 'Kia', 'Honda', 'Volvo', 'Subaru', 'Jeep', 'Land Rover', 'Porsche', 'Jaguar', 'Tesla'];
+    private const MODEL_YEAR_MAKES = ['Škoda', 'Volkswagen', 'Audi', 'Seat', 'Cupra', 'Opel', 'Hyundai', 'Kia', 'Honda', 'Volvo', 'Subaru', 'Jeep', 'Land Rover', 'Porsche', 'Jaguar', 'Tesla', 'Infiniti'];
 
     private const YEAR_CODES = 'ABCDEFGHJKLMNPRSTVWXY123456789';
 
     /**
-     * VW group: model code at chars 7–8. Entry = name | [candidates…] | [fromYear => name | [candidates…]].
-     * A "Cupra:" prefix moves the car to that make (Cupra shares Seat's WMI).
+     * Per maker: the VDS windows to try in order ([1-based start, length]) and the code table.
+     * Table value = name | [candidates…] | [fromYear => name | [candidates…]] (year split: the
+     * generation current for the model year). A "Cupra:" prefix moves the car to that make
+     * (Cupra shares Seat's WMI).
+     *
+     * @var array<string, array{at: list<array{0: int, 1: int}>, codes: array<string, mixed>}>
      */
-    private const VAG = [
-        'Škoda' => [
+    private const SCHEMES = [
+        'Škoda' => ['at' => [[7, 2]], 'codes' => [
             '6U' => 'Felicia', '1U' => 'Octavia I', '1Z' => 'Octavia II', 'NE' => 'Octavia III', 'NX' => 'Octavia IV',
             '6Y' => 'Fabia I', '5J' => ['Fabia II', 'Roomster', 'Praktik'], 'NJ' => 'Fabia III', 'PJ' => 'Fabia IV',
             '3U' => 'Superb I', '3T' => 'Superb II', '3V' => 'Superb III', '3Y' => 'Superb IV',
             '5L' => 'Yeti', 'NS' => [0 => 'Kodiaq I', 2024 => 'Kodiaq II'], 'NU' => 'Karoq', 'NH' => 'Rapid',
             'NW' => ['Scala', 'Kamiq'], 'NY' => 'Enyaq', 'AA' => 'Citigo',
-        ],
-        'Volkswagen' => [
+        ]],
+        'Volkswagen' => ['at' => [[7, 2]], 'codes' => [
             '6X' => 'Lupo', '5Z' => 'Fox', 'AA' => 'Up!', '6N' => 'Polo III', '9N' => 'Polo IV', '6R' => 'Polo V', '6C' => 'Polo V', 'AW' => 'Polo VI',
             '1H' => ['Golf III', 'Vento'], '1J' => ['Golf IV', 'Bora'], '1K' => ['Golf V', 'Jetta V'], '5K' => 'Golf VI', 'AU' => 'Golf VII', 'CD' => 'Golf VIII',
             '5M' => 'Golf Plus', 'AM' => 'Golf Sportsvan', '16' => 'Jetta VI',
@@ -79,76 +85,71 @@ final class VinDecoder
             '9K' => 'Caddy II', '2K' => [0 => 'Caddy III', 2016 => 'Caddy IV'], 'SB' => 'Caddy V', 'SK' => 'Caddy V',
             '70' => 'Transporter T4', '7H' => [0 => 'Transporter T5', 2016 => 'Transporter T6', 2020 => 'Transporter T6.1'], '7J' => [0 => 'Transporter T5', 2016 => 'Transporter T6', 2020 => 'Transporter T6.1'],
             'ST' => 'Multivan T7', '2D' => 'LT', '2E' => 'Crafter I', '2F' => 'Crafter I', 'SY' => 'Crafter II', 'SZ' => 'Crafter II', '2H' => 'Amarok I',
-        ],
-        'Audi' => [
+        ]],
+        'Audi' => ['at' => [[7, 2]], 'codes' => [
             '8C' => '80 (B4)', '8X' => 'A1 (8X)', 'GB' => 'A1 (GB)', '8Z' => 'A2', '8L' => 'A3 (8L)', '8P' => 'A3 (8P)', '8V' => 'A3 (8V)', '8Y' => 'A3 (8Y)',
             '8D' => 'A4 (B5)', '8E' => [0 => 'A4 (B6)', 2005 => 'A4 (B7)'], '8H' => 'A4 (B6)', '8K' => 'A4 (B8)', '8W' => 'A4 (B9)', '8T' => 'A5 (8T)', '8F' => 'A5 (8T)', 'F5' => 'A5 (F5)',
             '4A' => 'A6 (C4)', '4B' => 'A6 (C5)', '4F' => 'A6 (C6)', '4G' => ['A6 (C7)', 'A7 (4G)'], '4K' => ['A6 (C8)', 'A7 (4K)'],
             '4E' => 'A8 (D3)', '4H' => 'A8 (D4)', '4N' => 'A8 (D5)', '8N' => 'TT (8N)', '8J' => 'TT (8J)', 'FV' => 'TT (8S)',
             'GA' => 'Q2', '8U' => 'Q3 (8U)', 'F3' => 'Q3 (F3)', 'F4' => 'Q4 e-tron', '8R' => 'Q5 (8R)', 'FY' => 'Q5 (FY)', '4L' => 'Q7 (4L)', '4M' => ['Q7 (4M)', 'Q8'], 'GE' => ['e-tron', 'Q8 e-tron'],
-        ],
-        'Seat' => [
+        ]],
+        'Seat' => ['at' => [[7, 2]], 'codes' => [
             '6J' => 'Ibiza IV', 'KJ' => ['Ibiza V', 'Arona'], '1P' => 'Leon II', '5F' => 'Leon III', 'KL' => ['Leon IV', 'Cupra:Leon'],
             'NH' => 'Toledo IV', 'KH' => ['Ateca', 'Cupra:Ateca'], '7N' => 'Alhambra II', 'KM' => 'Cupra:Formentor', 'K1' => 'Cupra:Born',
-        ],
+        ]],
+        // Mercedes: series (Baureihe) at chars 4–6; 247 is decided by the WMI in special().
+        'Mercedes-Benz' => ['at' => [[4, 3]], 'codes' => [
+            '169' => 'A (W169)', '176' => 'A (W176)', '177' => 'A (W177)', '245' => 'B (W245)', '246' => 'B (W246)',
+            '203' => 'C (W203)', '204' => 'C (W204)', '205' => 'C (W205)', '206' => 'C (W206)',
+            '211' => 'E (W211)', '212' => 'E (W212)', '213' => 'E (W213)', '117' => 'CLA (C117)', '118' => 'CLA (C118)',
+            '156' => 'GLA (X156)', '253' => 'GLC (X253)', '254' => 'GLC (X254)', '164' => 'ML (W164)', '166' => 'ML/GLE (W166)', '167' => 'GLE (V167)',
+            '639' => 'Vito (W639)', '447' => 'Vito (W447)', '906' => 'Sprinter (W906)', '907' => 'Sprinter (W907)', '910' => 'Sprinter (W907)',
+        ]],
+        // Renault: model code at chars 4–6 (newer) or 4–5.
+        'Renault' => ['at' => [[4, 3], [4, 2]], 'codes' => [
+            'RJA' => 'Clio V', 'RJB' => 'Captur II', 'RFB' => 'Megane IV', 'RFA' => 'Scenic IV', 'RFE' => 'Kadjar', 'RFD' => 'Talisman', 'RFC' => 'Espace V',
+            'C06' => 'Twingo I', 'CN' => 'Twingo II', 'AH' => 'Twingo III', 'AG' => 'Zoe',
+            'B57' => 'Clio I', 'C57' => 'Clio I', 'S57' => 'Clio I', 'BB' => 'Clio II', 'CB' => 'Clio II', 'SB' => 'Clio II', 'BR' => 'Clio III', 'CR' => 'Clio III', 'KR' => 'Clio III', 'BH' => 'Clio IV', 'KH' => 'Clio IV',
+            'LB' => 'Thalia I', 'LU' => 'Thalia II', 'JP' => 'Modus', 'FP' => 'Modus',
+            'BA' => 'Megane I', 'DA' => 'Megane I', 'LA' => 'Megane I', 'KA' => 'Megane I', 'EA' => 'Megane I',
+            'BM' => 'Megane II', 'CM' => 'Megane II', 'LM' => 'Megane II', 'KM' => 'Megane II', 'EM' => 'Megane II',
+            'BZ' => 'Megane III', 'DZ' => 'Megane III', 'KZ' => 'Megane III', 'EZ' => 'Megane III', 'LZ' => 'Fluence',
+            'JA' => 'Scenic I', 'JM' => 'Scenic II', 'JZ' => 'Scenic III',
+            'B56' => 'Laguna I', 'K56' => 'Laguna I', 'BG' => 'Laguna II', 'KG' => 'Laguna II', 'BT' => 'Laguna III', 'KT' => 'Laguna III', 'BJ' => 'Vel Satis',
+            'JE' => 'Espace III', 'JK' => 'Espace IV', 'KC' => 'Kangoo I', 'FC' => 'Kangoo I', 'KW' => 'Kangoo II', 'FW' => 'Kangoo II',
+            '2R' => 'Captur I', 'VY' => 'Koleos I',
+            'FD' => 'Master II', 'JD' => 'Master II', 'ED' => 'Master II', 'MA' => 'Master III', 'FL' => ['Trafic II', 'Trafic III'], 'JL' => ['Trafic II', 'Trafic III'],
+        ]],
+        'Dacia' => ['at' => [[4, 3]], 'codes' => [
+            'LSD' => ['Logan I', 'Logan II'], 'KSD' => 'Logan MCV', 'BSD' => 'Sandero I', '5SD' => 'Sandero II',
+            'HSD' => 'Duster I', 'HJD' => 'Duster II', 'JSD' => 'Lodgy',
+        ]],
+        // PSA: model family letter at char 4.
+        'Peugeot' => ['at' => [[4, 1]], 'codes' => [
+            '2' => '206', 'W' => '207', 'C' => '208 I', 'U' => '208 II', '3' => '307', '4' => '308 I', 'L' => ['308 II', '308 III'],
+            '0' => '3008 I', 'M' => ['3008 II', '5008 II'], '8' => '508 I', 'F' => '508 II', 'G' => 'Partner', 'Y' => 'Boxer',
+        ]],
+        'Citroën' => ['at' => [[4, 1]], 'codes' => [
+            'S' => ['C3 II', 'C3 III'], 'L' => 'C4 I', 'N' => 'C4 II', 'R' => 'C5 II', 'G' => ['Berlingo II', 'Berlingo III'], 'V' => 'Jumpy III', 'Y' => 'Jumper',
+        ]],
+        // Fiat / Alfa: type code at chars 4–6.
+        'Fiat' => ['at' => [[4, 3]], 'codes' => [
+            '188' => 'Punto II', '199' => 'Punto III (Grande/Evo)', '312' => '500', '169' => 'Panda II', '319' => 'Panda III',
+            '356' => 'Tipo', '263' => 'Doblo II', '250' => 'Ducato',
+        ]],
+        'Alfa Romeo' => ['at' => [[4, 3]], 'codes' => ['939' => '159', '940' => 'Giulietta', '952' => 'Giulia', '949' => 'Stelvio']],
+        // Volvo: model code at chars 4–5.
+        'Volvo' => ['at' => [[4, 2]], 'codes' => ['MV' => 'V40 II', 'FW' => 'V60 I', 'ZW' => 'V60 II', 'FS' => 'S60 II', 'BW' => 'V70 III', 'DZ' => 'XC60 I', 'RZ' => 'XC60 II']],
+        // Porsche: model code at chars 7–8 (VAG style).
+        'Porsche' => ['at' => [[7, 2]], 'codes' => ['99' => [0 => '911 (997)', 2012 => '911 (991)', 2020 => '911 (992)'], '9P' => 'Cayenne (955/957)', '92' => 'Cayenne (958)', '9Y' => 'Cayenne (9YA)', '95' => 'Macan']],
+        // Land Rover: model letter at char 4.
+        'Land Rover' => ['at' => [[4, 1]], 'codes' => ['V' => 'Range Rover Evoque I', 'Z' => 'Range Rover Evoque II', 'F' => 'Freelander 2', 'C' => 'Discovery Sport']],
+        'Tesla' => ['at' => [[4, 1]], 'codes' => ['3' => 'Model 3', 'Y' => 'Model Y', 'S' => 'Model S', 'X' => 'Model X']],
+        // Infiniti (JNK = Japan-built passenger cars): line + body at chars 4–6; the G is the one that matters here.
+        'Infiniti' => ['at' => [[4, 3]], 'codes' => [
+            'CV6' => 'G37 (V36)', 'CV5' => 'G35 (V35)', 'CV7' => 'Q50 (V37)', 'BV7' => 'Q50 (V37)',
+        ]],
     ];
-
-    /** Mercedes: series (Baureihe) at chars 4–6; 247 is the B-Class on W1K/WDD and the GLA on W1N/WDC. */
-    private const MERCEDES = [
-        '169' => 'A (W169)', '176' => 'A (W176)', '177' => 'A (W177)', '245' => 'B (W245)', '246' => 'B (W246)',
-        '203' => 'C (W203)', '204' => 'C (W204)', '205' => 'C (W205)', '206' => 'C (W206)',
-        '211' => 'E (W211)', '212' => 'E (W212)', '213' => 'E (W213)', '117' => 'CLA (C117)', '118' => 'CLA (C118)',
-        '156' => 'GLA (X156)', '253' => 'GLC (X253)', '254' => 'GLC (X254)', '164' => 'ML (W164)', '166' => 'ML/GLE (W166)', '167' => 'GLE (V167)',
-        '639' => 'Vito (W639)', '447' => 'Vito (W447)', '906' => 'Sprinter (W906)', '907' => 'Sprinter (W907)', '910' => 'Sprinter (W907)',
-    ];
-
-    /** Renault: model code at chars 4–6 (newer) or 4–5. */
-    private const RENAULT = [
-        'RJA' => 'Clio V', 'RJB' => 'Captur II', 'RFB' => 'Megane IV', 'RFA' => 'Scenic IV', 'RFE' => 'Kadjar', 'RFD' => 'Talisman', 'RFC' => 'Espace V',
-        'C06' => 'Twingo I', 'CN' => 'Twingo II', 'AH' => 'Twingo III', 'AG' => 'Zoe',
-        'B57' => 'Clio I', 'C57' => 'Clio I', 'S57' => 'Clio I', 'BB' => 'Clio II', 'CB' => 'Clio II', 'SB' => 'Clio II', 'BR' => 'Clio III', 'CR' => 'Clio III', 'KR' => 'Clio III', 'BH' => 'Clio IV', 'KH' => 'Clio IV',
-        'LB' => 'Thalia I', 'LU' => 'Thalia II', 'JP' => 'Modus', 'FP' => 'Modus',
-        'BA' => 'Megane I', 'DA' => 'Megane I', 'LA' => 'Megane I', 'KA' => 'Megane I', 'EA' => 'Megane I',
-        'BM' => 'Megane II', 'CM' => 'Megane II', 'LM' => 'Megane II', 'KM' => 'Megane II', 'EM' => 'Megane II',
-        'BZ' => 'Megane III', 'DZ' => 'Megane III', 'KZ' => 'Megane III', 'EZ' => 'Megane III', 'LZ' => 'Fluence',
-        'JA' => 'Scenic I', 'JM' => 'Scenic II', 'JZ' => 'Scenic III',
-        'B56' => 'Laguna I', 'K56' => 'Laguna I', 'BG' => 'Laguna II', 'KG' => 'Laguna II', 'BT' => 'Laguna III', 'KT' => 'Laguna III', 'BJ' => 'Vel Satis',
-        'JE' => 'Espace III', 'JK' => 'Espace IV', 'KC' => 'Kangoo I', 'FC' => 'Kangoo I', 'KW' => 'Kangoo II', 'FW' => 'Kangoo II',
-        '2R' => 'Captur I', 'VY' => 'Koleos I',
-        'FD' => 'Master II', 'JD' => 'Master II', 'ED' => 'Master II', 'MA' => 'Master III', 'FL' => ['Trafic II', 'Trafic III'], 'JL' => ['Trafic II', 'Trafic III'],
-    ];
-
-    private const DACIA = [
-        'LSD' => ['Logan I', 'Logan II'], 'KSD' => 'Logan MCV', 'BSD' => 'Sandero I', '5SD' => 'Sandero II',
-        'HSD' => 'Duster I', 'HJD' => 'Duster II', 'JSD' => 'Lodgy',
-    ];
-
-    /** PSA: model family letter at char 4. */
-    private const PEUGEOT = [
-        '2' => '206', 'W' => '207', 'C' => '208 I', 'U' => '208 II', '3' => '307', '4' => '308 I', 'L' => ['308 II', '308 III'],
-        '0' => '3008 I', 'M' => ['3008 II', '5008 II'], '8' => '508 I', 'F' => '508 II', 'G' => 'Partner', 'Y' => 'Boxer',
-    ];
-
-    private const CITROEN = [
-        'S' => ['C3 II', 'C3 III'], 'L' => 'C4 I', 'N' => 'C4 II', 'R' => 'C5 II', 'G' => ['Berlingo II', 'Berlingo III'], 'V' => 'Jumpy III', 'Y' => 'Jumper',
-    ];
-
-    /** Fiat / Alfa: type code at chars 4–6. */
-    private const FIAT = [
-        '188' => 'Punto II', '199' => 'Punto III (Grande/Evo)', '312' => '500', '169' => 'Panda II', '319' => 'Panda III',
-        '356' => 'Tipo', '263' => 'Doblo II', '250' => 'Ducato',
-    ];
-
-    private const ALFA = ['939' => '159', '940' => 'Giulietta', '952' => 'Giulia', '949' => 'Stelvio'];
-
-    /** Volvo: model code at chars 4–5. */
-    private const VOLVO = ['MV' => 'V40 II', 'FW' => 'V60 I', 'ZW' => 'V60 II', 'FS' => 'S60 II', 'BW' => 'V70 III', 'DZ' => 'XC60 I', 'RZ' => 'XC60 II'];
-
-    /** Porsche: model code at chars 7–8 (VAG style). */
-    private const PORSCHE = ['99' => [0 => '911 (997)', 2012 => '911 (991)', 2020 => '911 (992)'], '9P' => 'Cayenne (955/957)', '92' => 'Cayenne (958)', '9Y' => 'Cayenne (9YA)', '95' => 'Macan'];
-
-    /** Land Rover: model letter at char 4. */
-    private const LAND_ROVER = ['V' => 'Range Rover Evoque I', 'Z' => 'Range Rover Evoque II', 'F' => 'Freelander 2', 'C' => 'Discovery Sport'];
 
     /**
      * @return array{valid: bool, make: string|null, year: int|null, models: list<string>}
@@ -191,26 +192,7 @@ final class VinDecoder
     /** @return list<string> */
     private static function candidates(?string $make, string $wmi, string $vin, ?int $year): array
     {
-        $entry = match ($make) {
-            'Škoda', 'Volkswagen', 'Audi', 'Seat' => self::VAG[$make][substr($vin, 6, 2)] ?? null,
-            'Mercedes-Benz' => self::mercedes($wmi, substr($vin, 3, 3)),
-            'Renault' => self::RENAULT[substr($vin, 3, 3)] ?? self::RENAULT[substr($vin, 3, 2)] ?? null,
-            'Dacia' => self::DACIA[substr($vin, 3, 3)] ?? null,
-            'Peugeot' => self::PEUGEOT[$vin[3]] ?? null,
-            'Citroën' => self::CITROEN[$vin[3]] ?? null,
-            'Fiat' => self::FIAT[substr($vin, 3, 3)] ?? null,
-            'Alfa Romeo' => self::ALFA[substr($vin, 3, 3)] ?? null,
-            'Volvo' => self::VOLVO[substr($vin, 3, 2)] ?? null,
-            'Porsche' => self::PORSCHE[substr($vin, 6, 2)] ?? null,
-            'Land Rover' => self::LAND_ROVER[$vin[3]] ?? null,
-            'Jaguar' => self::jaguar($wmi, $vin[3]),
-            'Tesla' => match ($vin[3]) {
-                '3' => 'Model 3', 'Y' => 'Model Y', 'S' => 'Model S', 'X' => 'Model X', default => null
-            },
-            'Jeep' => $wmi === '1C4' && substr($vin, 3, 2) === 'RJ' ? 'Grand Cherokee WK2' : null,
-            'Opel' => self::opel($vin),
-            default => null,
-        };
+        $entry = self::special($make, $wmi, $vin) ?? self::lookup($make, $vin);
 
         if ($entry === null) {
             return [];
@@ -236,13 +218,34 @@ final class VinDecoder
         return (array) ($pick ?? reset($entry));
     }
 
-    private static function mercedes(string $wmi, string $series): string|array|null
+    /** The maker's table, trying each window of the scheme in order. */
+    private static function lookup(?string $make, string $vin): string|array|null
     {
-        if ($series === '247') {
-            return in_array($wmi, ['W1N', 'WDC'], true) ? 'GLA (H247)' : 'B (W247)';
+        $scheme = self::SCHEMES[$make] ?? null;
+        if ($scheme === null) {
+            return null;
+        }
+        foreach ($scheme['at'] as [$start, $length]) {
+            $code = substr($vin, $start - 1, $length);
+            if (isset($scheme['codes'][$code])) {
+                return $scheme['codes'][$code];
+            }
         }
 
-        return self::MERCEDES[$series] ?? null;
+        return null;
+    }
+
+    /** Makers whose model needs more than a table: the WMI or two schemes decide. */
+    private static function special(?string $make, string $wmi, string $vin): string|array|null
+    {
+        return match ($make) {
+            // 247 is the B-Class on W1K/WDD and the GLA on W1N/WDC.
+            'Mercedes-Benz' => substr($vin, 3, 3) === '247' ? (in_array($wmi, ['W1N', 'WDC'], true) ? 'GLA (H247)' : 'B (W247)') : null,
+            'Jaguar' => self::jaguar($wmi, $vin[3]),
+            'Jeep' => $wmi === '1C4' && substr($vin, 3, 2) === 'RJ' ? 'Grand Cherokee WK2' : null,
+            'Opel' => self::opel($vin),
+            default => null,
+        };
     }
 
     private static function jaguar(string $wmi, string $code): ?string

@@ -21,17 +21,18 @@ Premenné prostredia sú v `.env.example`: `VITE_API_URL` (prázdne = rovnaký o
 | `/` | — | presmerovanie: majiteľ na širokej obrazovke → `/admin`, inak → `/m` |
 | **Mobil `/m`** | | zóna pre mechanikov, PWA štartuje tu (`src/mobile/`) |
 | `/m` | 1c | **Dielňa dnes** — autá na zdvihákoch, kto na čom robí, bežiace stopky; Autá / Ľudia / Hotové; nová zákazka |
-| `/m/zakazky/:id` | 1a | **Zákazka** — stopky (štart / pauza / ručný zápis s autorom), diely, fotky, diagnostika, uzavretie; po uzavretí zdieľanie odkazu na report |
+| `/m/zakazky/:id` | 1a | **Zákazka** — stopky (štart / pauza / ručný zápis s autorom), ▶ pri úkone spustí alebo prepne stopky na konkrétny úkon, bežiaci čas bez úkonu sa dá priradiť dodatočne; diely, fotky, diagnostika, uzavretie; po uzavretí zdieľanie odkazu na report |
 | `/m/zakazky/:id/dennik` | 1b | **Denník** — tá istá zákazka ako časová os |
 | `/m/ucet` | — | **Môj účet** — zmena hesla, odhlásenie |
 | **Desktop `/admin`** | | zóna len pre majiteľa, bočné menu (`src/admin/`) |
 | `/admin` | 1d | **Prehľad** — KPI za týždeň / mesiac / rok, práca vs. diely, mechanici, otvorené zákazky |
 | `/admin/zakazky` | — | **Zákazky** — tabuľka s filtrom a hľadaním |
-| `/admin/zakazky/:id` | — | **Detail zákazky** (desktop) — čas, diely, fotky, diagnostika, súčet, mechanik, uzavretie, uhradenie, odkaz na report |
+| `/admin/zakazky/:id` | — | **Detail zákazky** (desktop) — čas (každý zápis s úkonom), diely, fotky, diagnostika, súčet, mechanik, plán (dátum, čas, trvanie), uzavretie, uhradenie, odkaz na report |
+| `/admin/kalendar` | — | **Kalendár** — týždenný rozvrh naplánovaných zákaziek (Po–Ne, 7:00–18:00), kliknutím do voľného miesta naplánovanie, bočný zoznam nenaplánovaných |
 | `/admin/reporty`, `/admin/reporty/:id` | 1e | **Reporty** — zoznam, náhľad, tlač do PDF, kopírovanie odkazu, označenie ako uhradené |
 | `/admin/ukony` | — | **Úkony** — katalóg normohodín, normy podľa značky / modelu / motorizácie (modely sú generácie s rokmi), vozidlo sa dá nájsť aj podľa ŠPZ / VIN v tom istom políčku ako značka, tvoj priemer z histórie, doplnenie katalógu vozidiel |
 | `/admin/tim` | — | **Tím** — účty kolegov |
-| `/admin/nastavenia` | — | **Nastavenia** — údaje firmy na doklade, sadzba |
+| `/admin/nastavenia` | — | **Nastavenia** — údaje firmy na doklade, sadzba, účtovanie práce, či report ukazuje hodinovú sadzbu (predvolene nie) |
 | `/r/:token` | 1e | verejná online verzia reportu bez prihlásenia |
 
 Hľadanie vozidla (`components/VehicleLookup.tsx`, používa ho dialóg novej zákazky aj výber vozidla v Úkonoch): po zadaní ŠPZ alebo VIN sa cez `GET vehicles/lookup` ponúkne auto z histórie (jedným klikom predvyplní vozidlo, zákazníka aj km a zákazka sa pripojí k existujúcemu autu) a pri VIN aj to, čo sa dá z neho prečítať offline: značka, modelový rok a generácia (`VinHint`); pri zdieľanom kóde modelu sa ponúknu kandidáti. Výber vozidla potom pokračuje rovno na motorizácii.
@@ -50,7 +51,7 @@ src/
   data/queries.ts       react-query hooky a akcie (každý zápis vráti čerstvú zákazku)
   components/           Blueprint, ImageSlot, Dialog, dialógy zákazky, StatusTag, InstallBanner, TeamPanel, ShareReport, PAY by square
   mobile/               zóna telefónu: WorkshopToday, JobDetail, JobDiary, Account
-  admin/                zóna desktopu: AdminLayout, Dashboard, Orders, OrderDetail, Reports, ReportPage, TeamPage, SettingsPage
+  admin/                zóna desktopu: AdminLayout, Dashboard, Orders, OrderDetail, CalendarPage, Reports, ReportPage, TeamPage, SettingsPage, OperationsPage
   screens/              spoločné: Login, ReportView, PublicReport
 ```
 

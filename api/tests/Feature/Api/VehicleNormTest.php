@@ -227,6 +227,21 @@ class VehicleNormTest extends TestCase
         $this->getJson('/api/v1/vehicles/lookup?q=ABC12345678901234')->assertJsonPath('vin.valid', true)->assertJsonPath('vin.make', null)->assertJsonPath('vin.models', []);
     }
 
+    public function test_vin_decoder_knows_the_infiniti_g37(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $this->postJson('/api/v1/car-makes/import-defaults')->assertOk();
+
+        // JNK = Infiniti passenger car built in Japan, CV6 = G37 sedan, char 10 "9" = model year 2009.
+        $this->getJson('/api/v1/vehicles/lookup?q=JNKCV61E09M123456')
+            ->assertOk()
+            ->assertJsonPath('vin.make', 'Infiniti')
+            ->assertJsonPath('vin.year', 2009)
+            ->assertJsonPath('vin.models.0.name', 'G37 (V36)')
+            ->assertJsonPath('vin.models.0.years', '2007–2013');
+        $this->assertDatabaseHas('car_makes', ['name' => 'Infiniti', 'slug' => 'infiniti']);
+    }
+
     public function test_new_order_for_a_known_car_reuses_the_car_and_customer(): void
     {
         Sanctum::actingAs(User::factory()->create());

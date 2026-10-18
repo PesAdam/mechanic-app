@@ -501,6 +501,11 @@ final class VehicleCatalog
                 'Model Y' => ['2020–', ['Long Range', 'Performance']],
                 'Model S' => ['2012–', ['Long Range', 'Plaid']],
             ]],
+            'Infiniti' => ['slug' => 'infiniti', 'models' => [
+                'G35 (V35)' => ['2002–2007', ['3.5 V6']],
+                'G37 (V36)' => ['2007–2013', ['3.7 V6', '3.7 V6 4x4']],
+                'Q50 (V37)' => ['2013–', ['2.0t', '2.2d', '3.0t', '3.5 Hybrid']],
+            ]],
         ];
     }
 
