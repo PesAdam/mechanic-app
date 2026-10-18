@@ -84,4 +84,61 @@ class TimerControllerTest extends TestCase
             ->assertJsonPath('data.totals.seconds', 5400)
             ->assertJsonPath('data.totals.labor', 42);
     }
+
+    public function test_start_against_a_job_and_switching_to_another_closes_the_first_stint(): void
+    {
+        $this->travelTo('2026-10-19 08:00:00');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $brakes = $order->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+        $oil = $order->operations()->create(['name' => 'Olej', 'norm_minutes' => 30, 'sort' => 1]);
+
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => $brakes->id])
+            ->assertOk()
+            ->assertJsonPath('data.work_entries.0.order_operation_id', $brakes->id);
+        // The same job again changes nothing.
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => $brakes->id])->assertOk();
+        $this->assertDatabaseCount('work_entries', 1);
+
+        $this->travelTo('2026-10-19 08:40:00');
+        $response = $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => $oil->id]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.work_entries.0.ended_at', '2026-10-19T06:40:00.000000Z')
+            ->assertJsonPath('data.work_entries.1.order_operation_id', $oil->id)
+            ->assertJsonPath('data.work_entries.1.ended_at', null)
+            ->assertJsonPath('data.operations.0.seconds', 2400)
+            ->assertJsonPath('data.operations.1.seconds', 0)
+            ->assertJsonPath('data.totals.seconds', 2400);
+    }
+
+    public function test_start_rejects_a_job_from_another_order(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->open()->create();
+        $foreign = WorkOrder::factory()->open()->create()->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => $foreign->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('order_operation_id');
+        $this->assertDatabaseCount('work_entries', 0);
+    }
+
+    public function test_stop_files_a_jobless_stint_under_the_job_named_on_the_way_out(): void
+    {
+        $this->travelTo('2026-10-19 10:00:00');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $job = $order->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start")->assertOk()->assertJsonPath('data.work_entries.0.order_operation_id', null);
+        $this->travelTo('2026-10-19 10:30:00');
+
+        $this->postJson("/api/v1/orders/{$order->id}/timer/stop", ['order_operation_id' => $job->id])
+            ->assertOk()
+            ->assertJsonPath('data.work_entries.0.order_operation_id', $job->id)
+            ->assertJsonPath('data.work_entries.0.ended_at', '2026-10-19T08:30:00.000000Z')
+            ->assertJsonPath('data.operations.0.seconds', 1800);
+    }
 }

@@ -9,14 +9,15 @@ const EMPTY: Business = { name: '', owner: '', street: '', city: '', phone: '', 
 export default function SettingsPage() {
   const settings = useSettings()
   if (!settings.data) return <Blueprint style={{ padding: 16 }}><div className="muted" style={{ fontSize: 13 }}>{settings.isPending ? 'Načítavam nastavenia…' : 'Nastavenia sa nepodarilo načítať.'}</div></Blueprint>
-  return <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data.business} initialRate={settings.data.hourly_rate} initialBilling={settings.data.labor_billing} />
+  return <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data.business} initialRate={settings.data.hourly_rate} initialBilling={settings.data.labor_billing} initialShowRate={settings.data.report_show_rate ?? false} />
 }
 
-function SettingsForm({ initial, initialRate, initialBilling }: { initial: Business; initialRate: number; initialBilling: LaborBilling }) {
+function SettingsForm({ initial, initialRate, initialBilling, initialShowRate }: { initial: Business; initialRate: number; initialBilling: LaborBilling; initialShowRate: boolean }) {
   const { updateSettings } = useSettingsActions()
   const [b, setB] = useState<Business>({ ...EMPTY, ...initial })
   const [rate, setRate] = useState(String(initialRate))
   const [billing, setBilling] = useState<LaborBilling>(initialBilling)
+  const [showRate, setShowRate] = useState(initialShowRate)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -29,7 +30,7 @@ function SettingsForm({ initial, initialRate, initialBilling }: { initial: Busin
     setBusy(true)
     setError(null)
     try {
-      await updateSettings({ hourly_rate: r, labor_billing: billing, business: { ...b, name: b.name.trim() || 'NÁZOV' } })
+      await updateSettings({ hourly_rate: r, labor_billing: billing, report_show_rate: showRate, business: { ...b, name: b.name.trim() || 'NÁZOV' } })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (err) {
@@ -72,6 +73,11 @@ function SettingsForm({ initial, initialRate, initialBilling }: { initial: Busin
             </div>
           </div>
           <div className="muted" style={{ fontSize: 12 }}>Pri normohodinách sa práca účtuje ako súčet noriem úkonov na zákazke × sadzba; zákazka bez úkonov sa účtuje podľa skutočného času. Stopky vždy porovnávajú skutočný čas s normou.</div>
+          <label className="radio" style={{ gap: 10 }}>
+            <input type="checkbox" checked={showRate} onChange={e => setShowRate(e.target.checked)} style={{ position: 'static', opacity: 1, width: 16, height: 16, pointerEvents: 'auto' }} />
+            Zobrazovať hodinovú sadzbu na reporte pre zákazníka
+          </label>
+          <div className="muted" style={{ fontSize: 12 }}>Vypnuté: report ukáže vykonané úkony s časom a sumu za prácu, ale nie „× {rate || '…'} €/h“. V sadzbe sú aj náklady na priestory, náradie a materiál, čo zákazník na prvý pohľad nevidí.</div>
         </Blueprint>
 
         <div className="admin-actions">

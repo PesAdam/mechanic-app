@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react'
+import { Check } from 'lucide-react'
 import Dialog from './Dialog'
 import { useOrderActions, useUsers } from '../data/queries'
 import { useAuth } from '../auth/AuthContext'
 import { ApiError } from '../lib/api'
-import type { CodeStatus, Part } from '../lib/types'
+import { firstName } from '../lib/calc'
+import { timeOf } from '../lib/format'
+import type { CodeStatus, Order, OrderOperation, Part, WorkEntry } from '../lib/types'
 
 interface Base { open: boolean; onClose: () => void; orderId: number }
 
@@ -18,8 +21,8 @@ function useSubmit() {
   return { busy, error, wrap }
 }
 
-/** "Ručne": a time entry typed in instead of clocked, always with an author. */
-export function ManualTimeDialog({ open, onClose, orderId }: Base) {
+/** "Ručne": a time entry typed in instead of clocked, always with an author, optionally filed under a job. */
+export function ManualTimeDialog({ open, onClose, orderId, operations = [] }: Base & { operations?: OrderOperation[] }) {
   const { user } = useAuth()
   const users = useUsers()
   const { addManual } = useOrderActions()
@@ -27,13 +30,14 @@ export function ManualTimeDialog({ open, onClose, orderId }: Base) {
   const [minutes, setMinutes] = useState('15')
   const [note, setNote] = useState('')
   const [mech, setMech] = useState<number | null>(null)
+  const [opId, setOpId] = useState<number | ''>('')
   const mechanicId = mech ?? user?.id ?? 0
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const m = parseInt(minutes, 10)
     if (!m || m <= 0) return
-    void wrap(() => addManual(orderId, { minutes: m, note: note.trim(), user_id: mechanicId }), () => { setMinutes('15'); setNote(''); onClose() })
+    void wrap(() => addManual(orderId, { minutes: m, note: note.trim(), user_id: mechanicId, order_operation_id: opId === '' ? null : opId }), () => { setMinutes('15'); setNote(''); setOpId(''); onClose() })
   }
 
   return (
@@ -48,9 +52,44 @@ export function ManualTimeDialog({ open, onClose, orderId }: Base) {
             </select>
           </div>
         </div>
+        {operations.length > 0 && (
+          <div className="field"><label htmlFor="mt-op">Úkon</label>
+            <select id="mt-op" className="input" value={opId} onChange={e => setOpId(e.target.value ? Number(e.target.value) : '')}>
+              <option value="">— bez úkonu —</option>
+              {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="field"><label htmlFor="mt-note">Čo sa robilo</label><input id="mt-note" className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="Skúšobná jazda, kontrola brzdného účinku" /></div>
         {error && <div className="form-error" role="alert">{error}</div>}
       </form>
+    </Dialog>
+  )
+}
+
+/** "Priradiť k úkonu": files a stint (running or finished) under one of the order's jobs after the fact. */
+export function AssignEntryDialog({ open, onClose, order, entry }: { open: boolean; onClose: () => void; order: Order; entry: WorkEntry | null }) {
+  const { updateEntry } = useOrderActions()
+  const { busy, error, wrap } = useSubmit()
+  if (!entry) return null
+  const pick = (opId: number | null) => void wrap(() => updateEntry(entry.id, { order_operation_id: opId }), onClose)
+  return (
+    <Dialog open={open} title="Priradiť čas k úkonu" onClose={onClose}
+      actions={<button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Zavrieť</button>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="muted" style={{ fontSize: 12 }}>{firstName(entry.user.name)} · {timeOf(entry.started_at)}{entry.ended_at ? ` – ${timeOf(entry.ended_at)}` : ' – beží'}{entry.note ? ` · ${entry.note}` : ''}</div>
+        <div className="op-list">
+          {(order.operations ?? []).map(op => (
+            <button key={op.id} type="button" className="op-pick" disabled={busy} aria-pressed={entry.order_operation_id === op.id} onClick={() => pick(op.id)}>
+              <span style={{ textDecoration: op.done ? 'line-through' : 'none', opacity: op.done ? 0.7 : 1 }}>{op.name}</span>
+              {entry.order_operation_id === op.id && <Check size={14} strokeWidth={2} />}
+            </button>
+          ))}
+          <button type="button" className="op-pick" disabled={busy} onClick={() => pick(null)}><span className="muted">Bez úkonu</span>{entry.order_operation_id === null && <Check size={14} strokeWidth={2} />}</button>
+        </div>
+        {!(order.operations ?? []).length && <div className="muted" style={{ fontSize: 12 }}>Zákazka zatiaľ nemá úkony – pridajte ich v sekcii Úkony.</div>}
+        {error && <div className="form-error" role="alert">{error}</div>}
+      </div>
     </Dialog>
   )
 }

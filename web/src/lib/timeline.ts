@@ -43,10 +43,11 @@ export function buildTimeline(order: Order, now: number): TimelineEvent[] {
     evs.push({ id: `ph-${k}`, time, sort: Date.parse(photos[0].taken_at), title: STAGE_TITLE[stage] ?? 'Fotky', photos })
   }
 
+  const jobName = (opId: number | null) => (order.operations ?? []).find(op => op.id === opId)?.name ?? 'Práca'
   for (const e of order.work_entries) {
     if (!e.ended_at) continue
     evs.push({ id: `w-${e.id}`, time: timeOf(e.started_at), sort: Date.parse(e.started_at),
-      title: `Práca · ${firstName(e.user.name)}${e.manual ? ' · ručne' : ''}`, right: hm(e.seconds), text: e.note ?? undefined })
+      title: `${jobName(e.order_operation_id)} · ${firstName(e.user.name)}${e.manual ? ' · ručne' : ''}`, right: hm(e.seconds), text: e.note ?? undefined })
   }
 
   const partGroups = new Map<string, Part[]>()
@@ -65,7 +66,7 @@ export function buildTimeline(order: Order, now: number): TimelineEvent[] {
 
   for (const e of order.work_entries) {
     if (e.ended_at) continue
-    evs.push({ id: `live-${e.id}`, time: 'teraz', sort: Number.MAX_SAFE_INTEGER, title: `Práca · ${firstName(e.user.name)} · beží`,
+    evs.push({ id: `live-${e.id}`, time: 'teraz', sort: Number.MAX_SAFE_INTEGER, title: `${jobName(e.order_operation_id)} · ${firstName(e.user.name)} · beží`,
       right: hms(entrySeconds(e, now)), text: e.note ?? undefined, live: true })
   }
   return evs

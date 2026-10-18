@@ -29,6 +29,8 @@ class WorkOrderResource extends JsonResource
             'summary' => $this->summary,
             'lift' => $this->lift,
             'received_at' => $this->received_at?->toISOString(),
+            'planned_at' => $this->planned_at?->toISOString(),
+            'planned_minutes' => $this->planned_minutes,
             'closed_at' => $this->closed_at?->toISOString(),
             'public_token' => $this->public_token,
             'customer' => [
@@ -84,6 +86,7 @@ class WorkOrderResource extends JsonResource
             'work_entries' => $this->workEntries->map(fn (WorkEntry $e) => [
                 'id' => $e->id,
                 'user' => ['id' => $e->user->id, 'name' => $e->user->name],
+                'order_operation_id' => $e->order_operation_id,
                 'started_at' => $e->started_at->toISOString(),
                 'ended_at' => $e->ended_at?->toISOString(),
                 'seconds' => $e->seconds($now),
@@ -96,6 +99,8 @@ class WorkOrderResource extends JsonResource
                 'name' => $o->name,
                 'norm_minutes' => $o->norm_minutes,
                 'done' => $o->done,
+                // Time clocked against this job so far (running stints included, as of this response).
+                'seconds' => (int) $this->workEntries->where('order_operation_id', $o->id)->sum(fn (WorkEntry $e) => $e->seconds($now)),
             ])->values(),
             'totals' => OrderTotals::compute($this->resource, Settings::rate(), $now),
         ];

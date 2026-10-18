@@ -4,6 +4,7 @@ import { useOrderActions } from '../data/queries'
 import VehiclePicker, { EMPTY_VEHICLE, type Stage, type VehicleValue } from './VehiclePicker'
 import VehicleLookupResults from './VehicleLookup'
 import { ApiError } from '../lib/api'
+import { localToIso } from '../lib/format'
 import type { VehicleMatch, VinInfo } from '../lib/types'
 
 interface Props { open: boolean; onClose: () => void; onCreated?: (id: number) => void }
@@ -22,13 +23,15 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [summary, setSummary] = useState('')
+  const [planDate, setPlanDate] = useState('')
+  const [planTime, setPlanTime] = useState('08:00')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // VIN wins when typed (it is more specific); the plate otherwise.
   const lookupQ = open ? (vin.trim().length >= 3 ? vin.trim() : plate.trim()) : ''
 
-  const reset = () => { setPlate(''); setVin(''); setVehicle(EMPTY_VEHICLE); setCarId(null); setKm(''); setName(''); setPhone(''); setEmail(''); setSummary(''); setError(null); setPickerStart(undefined); setPickerKey(k => k + 1) }
+  const reset = () => { setPlate(''); setVin(''); setVehicle(EMPTY_VEHICLE); setCarId(null); setKm(''); setName(''); setPhone(''); setEmail(''); setSummary(''); setPlanDate(''); setPlanTime('08:00'); setError(null); setPickerStart(undefined); setPickerKey(k => k + 1) }
 
   const useMatch = (m: VehicleMatch) => {
     setCarId(m.car.id)
@@ -59,6 +62,7 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
         customer: { name: name.trim(), phone: phone.trim() || undefined, email: email.trim() || undefined },
         car: { id: carId ?? undefined, make: vehicle.make, model: vehicle.model, engine: vehicle.engine || undefined, plate: plate.trim().toUpperCase(), vin: vin.trim().toUpperCase() || undefined, km: parseInt(kmText, 10) || 0 },
         summary: summary.trim(),
+        planned_at: localToIso(planDate, planTime) ?? undefined,
       })
       reset()
       onClose()
@@ -96,6 +100,10 @@ export default function NewJobDialog({ open, onClose, onCreated }: Props) {
           <div className="field"><label htmlFor="nj-email">Email</label><input id="nj-email" className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="voliteľné" /></div>
         </div>
         <div className="field"><label htmlFor="nj-summary">Čo treba spraviť</label><input id="nj-summary" className="input" value={summary} onChange={e => setSummary(e.target.value)} placeholder="Brzdy vpredu + snímač EGR" required /></div>
+        <div className="row">
+          <div className="field"><label htmlFor="nj-plan-date">Plánované na (voliteľné)</label><input id="nj-plan-date" className="input" type="date" value={planDate} onChange={e => setPlanDate(e.target.value)} /></div>
+          <div className="field"><label htmlFor="nj-plan-time">Čas</label><input id="nj-plan-time" className="input" type="time" step={300} value={planTime} onChange={e => setPlanTime(e.target.value)} disabled={!planDate} /></div>
+        </div>
         {error && <div className="form-error" role="alert">{error}</div>}
       </form>
     </Dialog>

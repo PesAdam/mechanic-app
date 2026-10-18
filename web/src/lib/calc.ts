@@ -1,4 +1,4 @@
-import type { LaborBilling, Order, Part, PartsPricing, WorkEntry } from './types'
+import type { LaborBilling, Order, OrderOperation, Part, PartsPricing, WorkEntry } from './types'
 import { dateOf, isoDate } from './format'
 
 export const entrySeconds = (e: WorkEntry, now: number): number =>
@@ -25,6 +25,22 @@ export const partPrice = (p: Part, mode: PartsPricing): number => (mode === 'nc'
 export const partCost = (p: Part): number => p.purchase_price ?? p.price
 
 export const normSeconds = (o: Order): number => (o.operations ?? []).reduce((a, op) => a + op.norm_minutes * 60, 0)
+
+/** Time clocked against one job of the order, running stints included. */
+export const opSeconds = (o: Order, opId: number, now: number): number =>
+  o.work_entries.filter(e => e.order_operation_id === opId).reduce((a, e) => a + entrySeconds(e, now), 0)
+/** Stints that were not filed under any job. */
+export const unassignedEntries = (o: Order): WorkEntry[] => o.work_entries.filter(e => e.order_operation_id === null)
+export const opOf = (o: Order, opId: number | null): OrderOperation | null => (opId === null ? null : (o.operations ?? []).find(op => op.id === opId) ?? null)
+
+/** How long the order is planned to take: the explicit plan, else the norm sum, else an hour. */
+export const plannedMinutes = (o: Order): number => o.planned_minutes ?? (normSeconds(o) > 0 ? Math.round(normSeconds(o) / 60) : 60)
+/** Planned orders first (earliest plan first), the rest by arrival. */
+export const byPlan = (a: Order, b: Order): number => {
+  if (a.planned_at && b.planned_at) return Date.parse(a.planned_at) - Date.parse(b.planned_at)
+  if (a.planned_at !== b.planned_at) return a.planned_at ? -1 : 1
+  return Date.parse(a.received_at ?? '') - Date.parse(b.received_at ?? '')
+}
 
 /** 'norm-ok' while the measured time is within the norm, 'norm-bad' once over it, '' without a norm. */
 export const normClass = (seconds: number, norm: number): string => (!norm ? '' : norm - seconds >= 0 ? 'norm-ok' : 'norm-bad')

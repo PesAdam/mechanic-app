@@ -83,4 +83,42 @@ class OrderOperationControllerTest extends TestCase
             ->assertJsonPath('data.totals.labor_actual', 14)
             ->assertJsonPath('data.totals.delta_seconds', 1800);
     }
+
+    public function test_ticking_a_job_done_stops_the_stint_clocked_against_it(): void
+    {
+        $this->travelTo('2026-10-19 10:00:00');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $job = $order->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => $job->id])->assertOk();
+        $this->travelTo('2026-10-19 10:20:00');
+
+        $this->patchJson("/api/v1/order-operations/{$job->id}", ['done' => true])
+            ->assertOk()
+            ->assertJsonPath('data.operations.0.done', true)
+            ->assertJsonPath('data.operations.0.seconds', 1200)
+            ->assertJsonPath('data.work_entries.0.ended_at', '2026-10-19T08:20:00.000000Z');
+    }
+
+    public function test_closing_credits_assigned_time_to_its_job_and_splits_only_the_rest(): void
+    {
+        $this->freezeTime();
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $long = Operation::factory()->create(['norm_minutes' => 60]);
+        $short = Operation::factory()->create(['norm_minutes' => 30]);
+        $this->postJson("/api/v1/orders/{$order->id}/operations", ['operation_id' => $long->id]);
+        $this->postJson("/api/v1/orders/{$order->id}/operations", ['operation_id' => $short->id]);
+        $ops = $order->operations()->get();
+        // 50 min clocked against the short job; 90 min without a job are split 60:30 between the two.
+        WorkEntry::factory()->for($order)->for($user)->create(['order_operation_id' => $ops[1]->id, 'started_at' => now()->subMinutes(140), 'ended_at' => now()->subMinutes(90)]);
+        WorkEntry::factory()->for($order)->for($user)->create(['started_at' => now()->subMinutes(90), 'ended_at' => now()]);
+
+        $this->postJson("/api/v1/orders/{$order->id}/close")->assertOk();
+
+        $this->assertDatabaseHas('operation_samples', ['operation_id' => $long->id, 'actual_seconds' => 3600]);
+        $this->assertDatabaseHas('operation_samples', ['operation_id' => $short->id, 'actual_seconds' => 4800]);
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['work_order_id', 'operation_id', 'name', 'norm_minutes', 'done', 'sort'])]
 class OrderOperation extends Model
@@ -22,5 +23,11 @@ class OrderOperation extends Model
     public function operation(): BelongsTo
     {
         return $this->belongsTo(Operation::class);
+    }
+
+    /** Stints clocked against this job. */
+    public function workEntries(): HasMany
+    {
+        return $this->hasMany(WorkEntry::class);
     }
 }

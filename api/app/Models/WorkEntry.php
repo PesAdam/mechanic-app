@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** One stint at a car. `ended_at` NULL means the stopwatch is running. */
-#[Fillable(['work_order_id', 'user_id', 'started_at', 'ended_at', 'note', 'manual'])]
+/** One stint at a car. `ended_at` NULL means the stopwatch is running; `order_operation_id` ties it to one job of the order. */
+#[Fillable(['work_order_id', 'user_id', 'order_operation_id', 'started_at', 'ended_at', 'note', 'manual'])]
 class WorkEntry extends Model
 {
     /** @use HasFactory<WorkEntryFactory> */
@@ -18,7 +18,7 @@ class WorkEntry extends Model
 
     protected function casts(): array
     {
-        return ['started_at' => 'datetime', 'ended_at' => 'datetime', 'manual' => 'boolean'];
+        return ['order_operation_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime', 'manual' => 'boolean'];
     }
 
     public function workOrder(): BelongsTo
@@ -29,6 +29,11 @@ class WorkEntry extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function orderOperation(): BelongsTo
+    {
+        return $this->belongsTo(OrderOperation::class);
     }
 
     public function isRunning(): bool

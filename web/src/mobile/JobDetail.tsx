@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { firstName, isClosed, isRunning, normClass, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
+import { firstName, isClosed, isRunning, normClass, opOf, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
 import { eur, hm, hms, km, timeOf } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
 import type { Part, PhotoStage } from '../lib/types'
@@ -22,7 +22,7 @@ import AddPhotoTile from '../components/AddPhotoTile'
 import ShareReport from '../components/ShareReport'
 import NormBadge from '../components/NormBadge'
 import OperationsSection from '../components/OperationsSection'
-import { AddCodeDialog, AddPartDialog, ManualTimeDialog } from '../components/JobDialogs'
+import { AddCodeDialog, AddPartDialog, AssignEntryDialog, ManualTimeDialog } from '../components/JobDialogs'
 
 const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
 
@@ -42,6 +42,7 @@ export default function JobDetail() {
   const [editPart, setEditPart] = useState<Part | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
   const diagInput = useRef<HTMLInputElement>(null)
 
   if (!order) return q.isPending ? <Loading text="Načítavam zákazku…" /> : <NotFound />
@@ -94,6 +95,13 @@ export default function JobDetail() {
           <div className={`hd num ${normClass(t.seconds, t.norm_seconds)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(session)}</div>
           <div className="muted" style={{ fontSize: 12 }}>Celkom na aute {hm(t.seconds)} · {eur(t.labor)}</div>
           {t.norm_seconds > 0 && <div style={{ fontSize: 12, marginTop: 4 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} /></div>}
+          {mine && !closed && (
+            <div style={{ fontSize: 13, marginTop: 8 }}>
+              {opOf(order, mine.order_operation_id)
+                ? <>Robím: <b>{opOf(order, mine.order_operation_id)?.name}</b> · <button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>zmeniť</button></>
+                : <>Čas bez úkonu{order.operations.length ? <> · <button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>priradiť k úkonu</button></> : null}</>}
+            </div>
+          )}
           {!closed && (
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               {mine ? (
@@ -117,7 +125,7 @@ export default function JobDetail() {
         </Blueprint>
 
         <section style={{ display: 'flex', flexDirection: 'column' }}>
-          <OperationsSection order={order} closed={closed} />
+          <OperationsSection order={order} closed={closed} now={now} rate={rate} />
         </section>
 
         <section>
@@ -189,7 +197,8 @@ export default function JobDetail() {
         )}
       </div>
 
-      <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} />
+      <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} operations={order.operations} />
+      <AssignEntryDialog open={assignOpen} onClose={() => setAssignOpen(false)} order={order} entry={mine} />
       <AddPartDialog open={partOpen} onClose={() => setPartOpen(false)} orderId={order.id} />
       <AddPartDialog open={!!editPart} onClose={() => setEditPart(null)} orderId={order.id} part={editPart ?? undefined} />
       {closeOpen && <CloseOrderDialog order={order} rate={rate} now={now} billing={settings.data?.labor_billing} open onClose={() => setCloseOpen(false)} />}

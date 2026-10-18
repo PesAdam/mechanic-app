@@ -38,4 +38,13 @@ class SettingControllerTest extends TestCase
         $this->assertSame('32', Setting::get('hourly_rate'));
         $this->assertDatabaseHas('settings', ['key' => 'business.name', 'value' => 'AutoBelo']);
     }
+
+    public function test_report_rate_visibility_is_off_by_default_and_can_be_switched_on(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+
+        $this->getJson('/api/v1/settings')->assertOk()->assertJsonPath('report_show_rate', false);
+        $this->patchJson('/api/v1/settings', ['report_show_rate' => true])->assertOk()->assertJsonPath('report_show_rate', true);
+        $this->getJson('/api/v1/settings')->assertOk()->assertJsonPath('report_show_rate', true);
+    }
 }

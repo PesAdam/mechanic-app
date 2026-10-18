@@ -5,10 +5,10 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { entrySeconds, firstName, isClosed, isRunning, normClass, runningEntryOf, totalsOf, carName } from '../lib/calc'
-import { dateOf, eur, hm, hms, hoursSk, km, shortVin, skDate, timeOf } from '../lib/format'
+import { entrySeconds, firstName, isClosed, isRunning, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
+import { dateOf, eur, hm, hms, hoursSk, km, localToIso, shortVin, skDate, timeOf } from '../lib/format'
 import { publicReportUrl } from '../lib/share'
-import type { CodeStatus, Part, PhotoStage, WorkEntry } from '../lib/types'
+import type { CodeStatus, Order, Part, PhotoStage, WorkEntry } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
 import StatusTag from '../components/StatusTag'
@@ -83,14 +83,14 @@ export default function OrderDetail() {
         <div className="order-col">
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Úkony</span><span className="muted" style={{ fontSize: 13 }}>{t.norm_seconds ? `norma ${hm(t.norm_seconds)}` : 'bez normy'}</span></div>
-            <OperationsSection order={order} closed={closed} title={false} />
+            <OperationsSection order={order} closed={closed} title={false} now={now} rate={rate} />
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Čas pri aute</span><span className={`hd num ${normClass(t.seconds, t.norm_seconds)}`}>{hm(t.seconds)}</span></div>
             {t.norm_seconds > 0 && <div style={{ fontSize: 13 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} size={13} /></div>}
             <div>
-              {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} />)}
+              {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} order={order} closed={closed} busy={act.busy} onAssign={opId => void act.run(() => actions.updateEntry(e.id, { order_operation_id: opId }))} />)}
               {!order.work_entries.length && <div className="muted" style={{ fontSize: 13 }}>Zatiaľ bez zapísanej práce.</div>}
             </div>
             {!closed && (
@@ -186,6 +186,18 @@ export default function OrderDetail() {
               <input id="od-lift" className="input" key={order.lift ?? ''} defaultValue={order.lift ?? ''} placeholder="Zdvihák 1" disabled={act.busy}
                 onBlur={e => { const v = e.target.value.trim(); if ((order.lift ?? '') !== v) void act.run(() => actions.updateOrder(order.id, { lift: v || null })) }} />
             </div>
+            <div className="field"><label htmlFor="od-plan-date">Plánované na</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 104px', gap: 6 }}>
+                <input id="od-plan-date" className="input" type="date" key={`pd-${order.planned_at ?? ''}`} defaultValue={order.planned_at ? dateOf(order.planned_at) : ''} disabled={act.busy}
+                  onBlur={e => { const v = e.target.value; const iso = localToIso(v, order.planned_at ? timeOf(order.planned_at) : '08:00'); if (iso !== order.planned_at) void act.run(() => actions.updateOrder(order.id, { planned_at: iso })) }} />
+                <input className="input" type="time" aria-label="Čas" step={300} key={`pt-${order.planned_at ?? ''}`} defaultValue={order.planned_at ? timeOf(order.planned_at) : '08:00'} disabled={act.busy || !order.planned_at}
+                  onBlur={e => { if (!order.planned_at) return; const iso = localToIso(dateOf(order.planned_at), e.target.value); if (iso && iso !== order.planned_at) void act.run(() => actions.updateOrder(order.id, { planned_at: iso })) }} />
+              </div>
+            </div>
+            <div className="field"><label htmlFor="od-plan-min">Plánované trvanie (min)</label>
+              <input id="od-plan-min" className="input" type="number" inputMode="numeric" min={5} step={5} key={`pm-${order.planned_minutes ?? ''}`} defaultValue={order.planned_minutes ?? ''} placeholder={`podľa noriem ${plannedMinutes(order)}`} disabled={act.busy}
+                onBlur={e => { const v = parseInt(e.target.value, 10) || null; if (v !== order.planned_minutes) void act.run(() => actions.updateOrder(order.id, { planned_minutes: v })) }} />
+            </div>
             <div className="field"><label htmlFor="od-summary">Čo treba spraviť</label>
               <input id="od-summary" className="input" key={order.summary} defaultValue={order.summary} disabled={act.busy}
                 onBlur={e => { const v = e.target.value.trim(); if (v && v !== order.summary) void act.run(() => actions.updateOrder(order.id, { summary: v })) }} />
@@ -221,7 +233,7 @@ export default function OrderDetail() {
         </aside>
       </div>
 
-      <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} />
+      <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} operations={order.operations} />
       <AddPartDialog open={partOpen} onClose={() => setPartOpen(false)} orderId={order.id} />
       <AddPartDialog open={!!editPart} onClose={() => setEditPart(null)} orderId={order.id} part={editPart ?? undefined} />
       {closeOpen && <CloseOrderDialog order={order} rate={rate} now={now} billing={settings.data?.labor_billing} open onClose={() => setCloseOpen(false)} />}
@@ -230,13 +242,21 @@ export default function OrderDetail() {
   )
 }
 
-function EntryRow({ entry, now }: { entry: WorkEntry; now: number }) {
+/** One stint; on an open order the job it counts for can be picked right here. */
+function EntryRow({ entry, now, order, closed, busy, onAssign }: { entry: WorkEntry; now: number; order: Order; closed: boolean; busy: boolean; onAssign: (opId: number | null) => void }) {
   const running = !entry.ended_at
+  const job = (order.operations ?? []).find(op => op.id === entry.order_operation_id)
   return (
     <div className="entry-row">
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {running && <i className="dot live" />}{firstName(entry.user.name)}{entry.manual ? <span className="tag tag-neutral">ručne</span> : null}
+          {closed
+            ? <span className="muted" style={{ fontWeight: 400 }}>· {job?.name ?? 'bez úkonu'}</span>
+            : <select className="input entry-op" aria-label="Úkon" value={entry.order_operation_id ?? ''} disabled={busy} onChange={e => onAssign(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">— bez úkonu —</option>
+              {(order.operations ?? []).map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+            </select>}
         </div>
         <div className="muted" style={{ fontSize: 12 }}>
           {skDate(dateOf(entry.started_at))} {timeOf(entry.started_at)}{entry.ended_at ? ` – ${timeOf(entry.ended_at)}` : ' – beží'}{entry.note ? ` · ${entry.note}` : ''}

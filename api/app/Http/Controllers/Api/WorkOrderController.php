@@ -13,6 +13,7 @@ use App\Services\CarCatalog;
 use App\Services\OperationSamples;
 use App\Services\OrderTotals;
 use App\Services\Settings;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -48,6 +49,8 @@ class WorkOrderController extends Controller
             'car.km' => ['nullable', 'integer', 'min:0'],
             'summary' => ['required', 'string', 'max:255'],
             'lift' => ['nullable', 'string', 'max:32'],
+            'planned_at' => ['nullable', 'date'],
+            'planned_minutes' => ['nullable', 'integer', 'min:5', 'max:6000'],
         ]);
 
         $order = DB::transaction(function () use ($data) {
@@ -81,6 +84,8 @@ class WorkOrderController extends Controller
                 'lift' => $data['lift'] ?? null,
                 'status' => OrderStatus::New,
                 'received_at' => now(),
+                'planned_at' => self::localTime($data['planned_at'] ?? null),
+                'planned_minutes' => $data['planned_minutes'] ?? null,
             ]);
         });
 
@@ -101,6 +106,8 @@ class WorkOrderController extends Controller
             'parts_pricing' => ['sometimes', Rule::enum(PartsPricing::class)],
             'total_override' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'mechanic_id' => ['sometimes', 'nullable', 'exists:users,id'],
+            'planned_at' => ['sometimes', 'nullable', 'date'],
+            'planned_minutes' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:6000'],
             'km' => ['sometimes', 'integer', 'min:0', 'max:9999999'],
             'customer.name' => ['sometimes', 'string', 'max:120'],
             'customer.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
@@ -113,6 +120,9 @@ class WorkOrderController extends Controller
             }
             if (isset($data['customer'])) {
                 $order->customer->update($data['customer']);
+            }
+            if (array_key_exists('planned_at', $data)) {
+                $data['planned_at'] = self::localTime($data['planned_at']);
             }
             $order->update(Arr::except($data, ['km', 'customer']));
             if (array_key_exists('total_override', $data)) {
@@ -143,6 +153,12 @@ class WorkOrderController extends Controller
         });
 
         return new WorkOrderResource($this->loaded($order));
+    }
+
+    /** Clients send ISO timestamps (usually UTC); the database keeps wall-clock time in the app timezone like every other column. */
+    private static function localTime(?string $iso): ?CarbonImmutable
+    {
+        return $iso === null ? null : CarbonImmutable::parse($iso)->setTimezone(config('app.timezone'));
     }
 
     private function loaded(WorkOrder $order): WorkOrder

@@ -184,4 +184,38 @@ class WorkOrderControllerTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['km', 'customer.email']);
     }
+
+    public function test_order_can_be_planned_and_the_plan_round_trips_as_utc(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create();
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['planned_at' => '2026-10-20T06:30:00.000Z', 'planned_minutes' => 90])
+            ->assertOk()
+            ->assertJsonPath('data.planned_at', '2026-10-20T06:30:00.000000Z')
+            ->assertJsonPath('data.planned_minutes', 90);
+        // Stored as wall-clock time in the app timezone (CEST), like every other timestamp.
+        $this->assertDatabaseHas('work_orders', ['id' => $order->id, 'planned_at' => '2026-10-20 08:30:00', 'planned_minutes' => 90]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['planned_at' => null, 'planned_minutes' => null])
+            ->assertOk()
+            ->assertJsonPath('data.planned_at', null)
+            ->assertJsonPath('data.planned_minutes', null);
+        $this->patchJson("/api/v1/orders/{$order->id}", ['planned_minutes' => 2])->assertUnprocessable()->assertJsonValidationErrors('planned_minutes');
+    }
+
+    public function test_store_accepts_a_plan(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/v1/orders', [
+            'customer' => ['name' => 'Ján Kováč'],
+            'car' => ['make' => 'Škoda', 'model' => 'Fabia III', 'plate' => 'ZA 1 AA'],
+            'summary' => 'Olej',
+            'planned_at' => '2026-10-21T07:00:00Z',
+            'planned_minutes' => 45,
+        ])->assertCreated()
+            ->assertJsonPath('data.planned_at', '2026-10-21T07:00:00.000000Z')
+            ->assertJsonPath('data.planned_minutes', 45);
+    }
 }

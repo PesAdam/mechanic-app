@@ -40,6 +40,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('orders/{order}/timer/stop', [TimerController::class, 'stop']);
 
         Route::post('orders/{order}/work-entries', [WorkEntryController::class, 'store']);
+        Route::patch('work-entries/{entry}', [WorkEntryController::class, 'update']);
         Route::delete('work-entries/{entry}', [WorkEntryController::class, 'destroy']);
 
         Route::post('orders/{order}/parts', [PartController::class, 'store']);

@@ -46,6 +46,11 @@ class OrderOperationController extends Controller
 
         $orderOperation->update($data);
 
+        // Ticking a job off also stops whoever is still clocked against it.
+        if ($data['done'] ?? false) {
+            $orderOperation->workEntries()->whereNull('ended_at')->update(['ended_at' => now()]);
+        }
+
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($orderOperation->work_order_id));
     }
 

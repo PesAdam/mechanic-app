@@ -16,6 +16,7 @@ import ReportPage from './admin/ReportPage'
 import TeamPage from './admin/TeamPage'
 import SettingsPage from './admin/SettingsPage'
 import OperationsPage from './admin/OperationsPage'
+import CalendarPage from './admin/CalendarPage'
 
 /** Old URLs from before the mobile/admin split keep working (installed PWAs may still hold them). */
 function Legacy({ to }: { to: string }) {
@@ -43,6 +44,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="zakazky" element={<Orders />} />
           <Route path="zakazky/:id" element={<OrderDetail />} />
+          <Route path="kalendar" element={<CalendarPage />} />
           <Route path="reporty" element={<Reports />} />
           <Route path="reporty/:id" element={<ReportPage />} />
           <Route path="tim" element={<TeamPage />} />

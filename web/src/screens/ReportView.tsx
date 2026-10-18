@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { FileText } from 'lucide-react'
-import { entrySeconds, firstName, partPrice, totalsOf, carName } from '../lib/calc'
+import { entrySeconds, firstName, opSeconds, partPrice, totalsOf, unassignedEntries, carName } from '../lib/calc'
 import { addDays, dateOf, eur, hhmm, hm, hoursSk, km, shortVin, skDate } from '../lib/format'
 import type { CodeStatus, Order, Settings } from '../lib/types'
 import Blueprint from '../components/Blueprint'
@@ -16,6 +16,8 @@ interface Props { order: Order; settings: Settings; now: number; tools?: ReactNo
 export default function ReportView({ order, settings, now, tools }: Props) {
   const b = settings.business
   const rate = settings.hourly_rate
+  // The €/h figure scares laypeople: it stays off the report unless the owner switches it on.
+  const showRate = settings.report_show_rate ?? false
   const t = totalsOf(order, rate, now, settings.labor_billing)
   const byNorm = t.labor_billing === 'norm'
   const day = dateOf(order.closed_at ?? order.received_at ?? new Date(now).toISOString())
@@ -102,14 +104,11 @@ export default function ReportView({ order, settings, now, tools }: Props) {
                   ? order.operations.map(op => (
                     <tr key={op.id}><td>{op.name}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{hm(op.norm_minutes * 60)}</td></tr>
                   ))
-                  : order.work_entries.map(e => (
-                    <tr key={e.id}>
-                      <td>{e.note || `Práca · ${firstName(e.user.name)}`}{!e.ended_at ? ' (prebieha)' : ''}</td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{hm(entrySeconds(e, now))}</td>
-                    </tr>
+                  : laborRows(order, now).map(r => (
+                    <tr key={r.key}><td>{r.label}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{hm(r.seconds)}</td></tr>
                   ))}
                 {!byNorm && !order.work_entries.length && <tr><td className="muted" colSpan={2}>Bez zapísanej práce.</td></tr>}
-                <tr><td><b>Spolu práca</b> · {byNorm ? `${hoursSk(t.norm_seconds / 3600)} × ` : ''}{rate} €/h</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><b>{eur(t.labor)}</b></td></tr>
+                <tr><td><b>Spolu práca</b>{showRate ? <> · {byNorm ? `${hoursSk(t.norm_seconds / 3600)} × ` : ''}{rate} €/h</> : null}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><b>{eur(t.labor)}</b></td></tr>
               </tbody>
             </table>
           </section>
@@ -144,6 +143,15 @@ export default function ReportView({ order, settings, now, tools }: Props) {
       </article>
     </div>
   )
+}
+
+/** Work rows for the customer: the jobs with the time clocked against them, then stints filed under no job. */
+function laborRows(order: Order, now: number): { key: string; label: string; seconds: number }[] {
+  const rows = (order.operations ?? []).map(op => ({ key: `op-${op.id}`, label: op.name, seconds: opSeconds(order, op.id, now) })).filter(r => r.seconds > 0)
+  for (const e of unassignedEntries(order)) {
+    rows.push({ key: `e-${e.id}`, label: `${e.note || `Práca · ${firstName(e.user.name)}`}${!e.ended_at ? ' (prebieha)' : ''}`, seconds: entrySeconds(e, now) })
+  }
+  return rows
 }
 
 /** "09:40 – 15:05": first record of the day to the last one (or now while running). */

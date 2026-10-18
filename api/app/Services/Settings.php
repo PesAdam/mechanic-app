@@ -58,7 +58,13 @@ final class Settings
         app()->forgetInstance(self::BILLING_BINDING);
     }
 
-    /** @return array{hourly_rate: float, labor_billing: string, business: array<string, mixed>} */
+    /** The customer report hides the hourly rate unless the owner switches it on. */
+    public static function reportShowRate(): bool
+    {
+        return (bool) (int) Setting::get('report_show_rate', 0);
+    }
+
+    /** @return array{hourly_rate: float, labor_billing: string, report_show_rate: bool, business: array<string, mixed>} */
     public static function payload(): array
     {
         $values = Setting::query()
@@ -71,6 +77,6 @@ final class Settings
         }
         $business['vat_payer'] = (bool) (int) $business['vat_payer'];
 
-        return ['hourly_rate' => self::rate(), 'labor_billing' => self::laborBilling(), 'business' => $business];
+        return ['hourly_rate' => self::rate(), 'labor_billing' => self::laborBilling(), 'report_show_rate' => self::reportShowRate(), 'business' => $business];
     }
 }

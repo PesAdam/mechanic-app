@@ -39,13 +39,15 @@ export interface Operation {
   /** Present when the catalogue was asked for a specific car model. */
   car_norm_minutes?: number; car_norm_source?: 'engine' | 'model' | 'make' | 'default'; car_norm_id?: number | null; car_avg_seconds?: number | null; car_samples_count?: number
 }
-/** A job picked on an order (name and norm are snapshots). */
-export interface OrderOperation { id: number; operation_id: number | null; name: string; norm_minutes: number; done: boolean }
+/** A job picked on an order (name and norm are snapshots). `seconds` = time clocked against it as of the server response. */
+export interface OrderOperation { id: number; operation_id: number | null; name: string; norm_minutes: number; done: boolean; seconds: number }
 
 /** One stint at the car. `ended_at === null` means the stopwatch is running. */
 export interface WorkEntry {
   id: number
   user: UserRef
+  /** The job this stint was clocked against; null = the plain order-level stopwatch. */
+  order_operation_id: number | null
   started_at: string
   ended_at: string | null
   /** Seconds as of the server response; recompute for running entries. */
@@ -75,6 +77,9 @@ export interface Order {
   summary: string
   lift: string | null
   received_at: string | null
+  /** When the shop plans to work on the order (ISO) and for how long; null = unplanned / the norm sum. */
+  planned_at: string | null
+  planned_minutes: number | null
   closed_at: string | null
   public_token: string
   customer: Customer
@@ -91,7 +96,8 @@ export interface Order {
 export interface Business {
   name: string; owner: string; street: string; city: string; phone: string; email: string; iban: string; ico: string; vat_payer: boolean
 }
-export interface Settings { hourly_rate: number; labor_billing: LaborBilling; business: Business }
+/** `report_show_rate`: whether the customer report prints the €/h figure (off by default). */
+export interface Settings { hourly_rate: number; labor_billing: LaborBilling; report_show_rate: boolean; business: Business }
 
 export interface DashboardData {
   period: Period
@@ -109,6 +115,8 @@ export interface NewOrderPayload {
   car: { id?: number; make: string; model: string; engine?: string; plate: string; vin?: string; km?: number }
   summary: string
   lift?: string
+  planned_at?: string
+  planned_minutes?: number
 }
 
 /** Result of `GET /vehicles/lookup?q=` – the shop's own history plus what the VIN itself reveals. */

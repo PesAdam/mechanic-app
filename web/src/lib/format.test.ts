@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, eur, hm, hms, hoursSk, km, shortVin, skDate, skDateShort, weekday } from './format'
+import { addDays, eur, hm, hms, hoursSk, isoWeek, km, mondayOf, planLabel, shortVin, skDate, skDateShort, weekday } from './format'
 
 describe('format', () => {
   it('formats euro amounts the Slovak way', () => {
@@ -28,5 +28,17 @@ describe('format', () => {
     expect(km(999)).toBe('999 km')
     expect(shortVin('TMBJG7NE5J0114821')).toBe('TMBJG7NE…4821')
     expect(shortVin(null)).toBe('—')
+  })
+
+  it('labels a plan relative to today and finds week boundaries', () => {
+    const now = new Date('2026-10-19T12:00:00').getTime() // Monday
+    expect(planLabel(new Date('2026-10-19T10:00:00').toISOString(), now)).toBe('dnes 10:00')
+    expect(planLabel(new Date('2026-10-20T08:00:00').toISOString(), now)).toBe('zajtra 08:00')
+    expect(planLabel(new Date('2026-10-22T13:30:00').toISOString(), now)).toBe('Št 13:30')
+    expect(planLabel(new Date('2026-10-28T09:00:00').toISOString(), now)).toBe('28. 10. 09:00')
+    expect(mondayOf('2026-10-22')).toBe('2026-10-19')
+    expect(mondayOf('2026-10-18')).toBe('2026-10-12')
+    expect(isoWeek('2026-10-19')).toBe(43)
+    expect(isoWeek('2026-01-01')).toBe(1)
   })
 })

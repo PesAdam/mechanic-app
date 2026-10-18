@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { carName, entrySeconds, isClosed, isRunning, normClass, partCost, partPrice, sessionSeconds, totalsOf } from './calc'
+import { byPlan, carName, entrySeconds, isClosed, isRunning, normClass, opSeconds, partCost, partPrice, plannedMinutes, sessionSeconds, totalsOf, unassignedEntries } from './calc'
 import type { Order, Part, WorkEntry } from './types'
 
 const NOW = Date.parse('2026-10-12T10:00:00.000Z')
 const user = { id: 1, name: 'Adam Belko' }
 
-const entry = (over: Partial<WorkEntry>): WorkEntry => ({ id: 1, user, started_at: '2026-10-12T08:00:00.000Z', ended_at: '2026-10-12T09:00:00.000Z', seconds: 3600, note: null, manual: false, ...over })
+const entry = (over: Partial<WorkEntry>): WorkEntry => ({ id: 1, user, order_operation_id: null, started_at: '2026-10-12T08:00:00.000Z', ended_at: '2026-10-12T09:00:00.000Z', seconds: 3600, note: null, manual: false, ...over })
 const part = (over: Partial<Part>): Part => ({ id: 1, name: 'Diel', meta: null, price: 100, purchase_price: 80, used: true, added_at: '2026-10-12T08:00:00.000Z', ...over })
 
 /** A bare order; tests override what they measure. */
 const order = (over: Partial<Order>): Order => ({
-  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, summary: 'Brzdy', lift: null, received_at: null, closed_at: null, public_token: 't',
+  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, summary: 'Brzdy', lift: null, received_at: null, planned_at: null, planned_minutes: null, closed_at: null, public_token: 't',
   customer: { id: 1, name: 'Ján Kováč', phone: null, email: null },
   car: { id: 1, make: 'Škoda', model: 'Octavia III', engine: '2.0 TDI', car_make_id: 1, car_model_id: 1, car_engine_id: 1, logo_url: null, plate: 'ZA 412 KL', vin: null, km: 0 },
   mechanic: null, parts: [], photos: [], diagnostic: null, work_entries: [], operations: [],
@@ -47,7 +47,7 @@ describe('work entries', () => {
 describe('totalsOf', () => {
   const o = order({
     work_entries: [entry({ id: 1, seconds: 3600 }), entry({ id: 2, ended_at: null, seconds: 0, started_at: '2026-10-12T09:50:00.000Z' })],
-    operations: [{ id: 1, operation_id: 1, name: 'Brzdy vpredu', norm_minutes: 60, done: false }],
+    operations: [{ id: 1, operation_id: 1, name: 'Brzdy vpredu', norm_minutes: 60, done: false, seconds: 0 }],
     parts: [part({ id: 1, price: 100, purchase_price: 80 }), part({ id: 2, price: 50, purchase_price: null }), part({ id: 3, price: 999, used: false })],
   })
 
@@ -96,6 +96,29 @@ describe('helpers', () => {
     expect(partPrice(part({}), 'nc')).toBe(80)
     expect(partPrice(part({ purchase_price: null }), 'nc')).toBe(100)
     expect(partCost(part({ purchase_price: null }))).toBe(100)
+  })
+
+  it('sums the time clocked against one job, running stints included', () => {
+    const o = order({
+      operations: [{ id: 5, operation_id: 1, name: 'Brzdy', norm_minutes: 60, done: false, seconds: 0 }],
+      work_entries: [entry({ id: 1, order_operation_id: 5 }), entry({ id: 2, order_operation_id: 5, ended_at: null, seconds: 0, started_at: '2026-10-12T09:50:00.000Z' }), entry({ id: 3 })],
+    })
+    expect(opSeconds(o, 5, NOW)).toBe(4200)
+    expect(unassignedEntries(o).map(e => e.id)).toEqual([3])
+  })
+
+  it('plans by the explicit duration, else the norms, else an hour', () => {
+    expect(plannedMinutes(order({}))).toBe(60)
+    expect(plannedMinutes(order({ operations: [{ id: 1, operation_id: null, name: 'X', norm_minutes: 45, done: false, seconds: 0 }, { id: 2, operation_id: null, name: 'Y', norm_minutes: 30, done: false, seconds: 0 }] }))).toBe(75)
+    expect(plannedMinutes(order({ planned_minutes: 120, operations: [{ id: 1, operation_id: null, name: 'X', norm_minutes: 45, done: false, seconds: 0 }] }))).toBe(120)
+  })
+
+  it('sorts planned orders first, earliest plan first, the rest by arrival', () => {
+    const a = order({ id: 1, planned_at: '2026-10-13T08:00:00.000Z' })
+    const b = order({ id: 2, planned_at: '2026-10-12T14:00:00.000Z' })
+    const c = order({ id: 3, received_at: '2026-10-10T08:00:00.000Z' })
+    const d = order({ id: 4, received_at: '2026-10-11T08:00:00.000Z' })
+    expect([a, c, d, b].sort(byPlan).map(o => o.id)).toEqual([2, 1, 3, 4])
   })
 
   it('classifies time against the norm', () => {
