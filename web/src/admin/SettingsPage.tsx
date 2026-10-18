@@ -8,11 +8,14 @@ const EMPTY: Business = { name: '', owner: '', street: '', city: '', phone: '', 
 
 export default function SettingsPage() {
   const settings = useSettings()
+  // The form remounts with every saved change (it is keyed by the settings), so the "saved" note lives up here.
+  const [saved, setSaved] = useState(false)
+  const flashSaved = () => { setSaved(true); setTimeout(() => setSaved(false), 2500) }
   if (!settings.data) return <Blueprint style={{ padding: 16 }}><div className="muted" style={{ fontSize: 13 }}>{settings.isPending ? 'Načítavam nastavenia…' : 'Nastavenia sa nepodarilo načítať.'}</div></Blueprint>
-  return <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data.business} initialRate={settings.data.hourly_rate} initialBilling={settings.data.labor_billing} initialShowRate={settings.data.report_show_rate ?? false} />
+  return <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data.business} initialRate={settings.data.hourly_rate} initialBilling={settings.data.labor_billing} initialShowRate={settings.data.report_show_rate ?? false} saved={saved} onSaved={flashSaved} />
 }
 
-function SettingsForm({ initial, initialRate, initialBilling, initialShowRate }: { initial: Business; initialRate: number; initialBilling: LaborBilling; initialShowRate: boolean }) {
+function SettingsForm({ initial, initialRate, initialBilling, initialShowRate, saved, onSaved }: { initial: Business; initialRate: number; initialBilling: LaborBilling; initialShowRate: boolean; saved: boolean; onSaved: () => void }) {
   const { updateSettings } = useSettingsActions()
   const [b, setB] = useState<Business>({ ...EMPTY, ...initial })
   const [rate, setRate] = useState(String(initialRate))
@@ -20,7 +23,6 @@ function SettingsForm({ initial, initialRate, initialBilling, initialShowRate }:
   const [showRate, setShowRate] = useState(initialShowRate)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
   const set = (k: keyof Business) => (e: { target: { value: string } }) => setB(prev => ({ ...prev, [k]: e.target.value }))
 
   const submit = async (e: FormEvent) => {
@@ -31,8 +33,7 @@ function SettingsForm({ initial, initialRate, initialBilling, initialShowRate }:
     setError(null)
     try {
       await updateSettings({ hourly_rate: r, labor_billing: billing, report_show_rate: showRate, business: { ...b, name: b.name.trim() || 'NÁZOV' } })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
+      onSaved()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Nepodarilo sa uložiť.')
     } finally {

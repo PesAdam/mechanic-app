@@ -53,4 +53,54 @@ test.describe('desktop majiteľa', () => {
     await expect(page.getByText(name)).toBeVisible()
     await expect(page.getByText(email)).toBeVisible()
   })
+
+  test('Kalendár: naplánovanie zákazky sa ukáže v rozvrhu aj v tabuľke', async ({ page }) => {
+    await page.goto('/admin/kalendar')
+    const today = new Date()
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    await page.locator('.plan-row', { hasText: '#0233' }).getByRole('button', { name: 'Naplánovať' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Plán · #0233' })
+    await dialog.getByLabel('Dátum').fill(iso)
+    await dialog.getByLabel('Čas').fill('15:00')
+    await dialog.getByLabel('Trvanie (min)').fill('90')
+    await dialog.getByRole('button', { name: 'Uložiť' }).click()
+
+    const block = page.locator('.cal-block', { hasText: '15:00 · BMW' })
+    await expect(block).toBeVisible()
+    await expect(page.locator('.plan-row', { hasText: '#0233' })).toHaveCount(0)
+
+    await page.goto('/admin/zakazky')
+    await page.getByText('Podľa plánu').click()
+    await expect(page.locator('tbody tr').first()).toContainText('0233')
+    await expect(page.locator('tbody tr').first()).toContainText('dnes 15:00')
+
+    // The plan is editable on the order itself and can be removed from the calendar block.
+    await page.goto('/admin/zakazky/3')
+    await expect(page.getByLabel('Plánované na')).toHaveValue(iso)
+    await expect(page.getByLabel('Plánované trvanie (min)')).toHaveValue('90')
+    await page.goto('/admin/kalendar')
+    await page.locator('.cal-block', { hasText: '15:00 · BMW' }).click()
+    await page.getByRole('dialog', { name: 'Plán · #0233' }).getByRole('button', { name: 'Zrušiť plán' }).click()
+    await expect(page.locator('.plan-row', { hasText: '#0233' })).toBeVisible()
+  })
+
+  test('Report neukazuje hodinovú sadzbu, kým ju majiteľ nezapne', async ({ page }) => {
+    await page.goto('/admin/reporty/4')
+    const labor = page.locator('tr', { hasText: 'Spolu práca' })
+    await expect(labor).toBeVisible()
+    await expect(labor).not.toContainText('€/h')
+
+    await page.goto('/admin/nastavenia')
+    await page.getByText('Zobrazovať hodinovú sadzbu na reporte').click()
+    await page.getByRole('button', { name: 'Uložiť nastavenia' }).click()
+    await expect(page.getByText('Uložené ✓')).toBeVisible()
+    await page.goto('/admin/reporty/4')
+    await expect(page.locator('tr', { hasText: 'Spolu práca' })).toContainText('€/h')
+
+    await page.goto('/admin/nastavenia')
+    await page.getByText('Zobrazovať hodinovú sadzbu na reporte').click()
+    await page.getByRole('button', { name: 'Uložiť nastavenia' }).click()
+    await expect(page.getByText('Uložené ✓')).toBeVisible()
+  })
 })

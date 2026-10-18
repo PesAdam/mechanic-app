@@ -61,3 +61,38 @@ test('zákazka od ŠPZ cez stopky a diely po report pre zákazníka', async ({ p
   await expect(page.locator('tr', { hasText: 'Spolu diely' })).toContainText('90,00 €')
   await expect(page.locator('body')).not.toContainText(/MOC|NC ·|nákupn/)
 })
+
+/** Stopky na úkon: ▶ pri úkone spustí a prepne stopky, čas bez úkonu sa dá priradiť dodatočne. */
+test('stopky sa spúšťajú a prepínajú na konkrétny úkon', async ({ page }) => {
+  await loginViaApi(page, MECHANIC)
+  await page.goto('/m/zakazky/1') // #0231 from the seeder: four jobs, open
+
+  await page.getByRole('button', { name: 'Štart · Výmena snímača EGR' }).click()
+  await expect(page.getByText('Robím:')).toContainText('Výmena snímača EGR')
+  await expect(page.getByRole('button', { name: 'Pauza · Výmena snímača EGR' })).toBeVisible()
+
+  // Another job's ▶ switches: the first stint closes, the new one runs.
+  await page.getByRole('button', { name: 'Štart · Skúšobná jazda' }).click()
+  await expect(page.getByText('Robím:')).toContainText('Skúšobná jazda')
+  await expect(page.getByRole('button', { name: 'Štart · Výmena snímača EGR' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Pauza', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Štart', exact: true })).toBeVisible()
+
+  // Forgot to pick a job: the plain Štart runs without one and the job is assigned afterwards.
+  await page.getByRole('button', { name: 'Štart', exact: true }).click()
+  await expect(page.getByText('Čas bez úkonu')).toBeVisible()
+  await page.getByRole('button', { name: 'priradiť k úkonu' }).click()
+  await page.getByRole('dialog', { name: 'Priradiť čas k úkonu' }).getByRole('button', { name: 'Diagnostika riadiacich jednotiek' }).click()
+  await expect(page.getByText('Robím:')).toContainText('Diagnostika riadiacich jednotiek')
+  await page.getByRole('button', { name: 'Pauza', exact: true }).click()
+
+  const token = await apiToken(page)
+  const res = await page.request.get('/api/v1/orders/1', { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })
+  const order = (await res.json()).data as { work_entries: { user: { name: string }; order_operation_id: number | null; ended_at: string | null }[] }
+  // Marek's three stints are closed and filed under jobs; Adam's seeded stopwatch on this car keeps running untouched.
+  const mine = order.work_entries.filter(e => e.user.name.startsWith(MECHANIC.name))
+  expect(mine.filter(e => e.ended_at === null)).toHaveLength(0)
+  expect(mine.filter(e => e.order_operation_id !== null).length).toBeGreaterThanOrEqual(3)
+  expect(order.work_entries.some(e => e.user.name.startsWith('Adam') && e.ended_at === null)).toBeTruthy()
+})
