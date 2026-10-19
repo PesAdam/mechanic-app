@@ -172,6 +172,7 @@ final class VehicleCatalog
                 'A6 e-tron' => ['2024–', ['A6', 'A6 performance', 'A6 quattro', 'S6']],
             ]],
             'BMW' => ['slug' => 'bmw', 'models' => [
+                '5 GT (F07)' => ['2009–2017', ['520d', '530d', '535d', '535i', '550i', '535d xDrive', '550i xDrive']],
                 '1 (E87)' => ['2004–2013', ['116i', '118i', '120i', '118d', '120d', '125i', '130i', '135i', '116d', '123d']],
                 '1 (F20)' => ['2011–2019', ['116i', '118i', '120i', '116d', '118d', '120d', '114i', '125i', 'M135i', 'M140i', '114d', '125d']],
                 '1 (F40)' => ['2019–2024', ['116i', '118i', '116d', '118d', '120d', '120i', '128ti', 'M135i xDrive']],
@@ -358,6 +359,7 @@ final class VehicleCatalog
                 'Movano C' => ['2021–', ['2.2 D', 'Movano-e']],
             ]],
             'Ford' => ['slug' => 'ford', 'models' => [
+                'Cougar' => ['1998–2002', ['2.0 16V', '2.5 V6']],
                 'Fiesta VI' => ['2008–2017', ['1.0 EcoBoost', '1.25', '1.4', '1.4 TDCi', '1.5 TDCi', '1.6 TDCi', '1.6 Ti-VCT', '1.6 EcoBoost ST']],
                 'Fiesta VII' => ['2017–2023', ['1.0 EcoBoost', '1.1', '1.5 TDCi']],
                 'Focus II' => ['2004–2011', ['1.4', '1.6', '1.8', '1.6 TDCi', '1.8 TDCi', '2.0 TDCi']],
@@ -974,6 +976,8 @@ final class VehicleCatalog
                 'Jimny (JB74)' => ['2018–', ['1.5']],
             ]],
             'Volvo' => ['slug' => 'volvo', 'models' => [
+                'V60 Cross Country I' => ['2015–2018', ['T5 AWD', 'D3', 'D4', 'D4 AWD']],
+                'V60 Cross Country II' => ['2018–', ['T5 AWD', 'B4', 'B5 AWD', 'D3', 'D4 AWD']],
                 'V40 II' => ['2012–2019', ['T2', 'T3', 'T4', 'D2', 'D3', 'D4']],
                 'V60 I' => ['2010–2018', ['T4', 'T5', 'D3', 'D4', 'D5', 'T3', 'T6', 'D2', 'D6 Twin Engine']],
                 'V60 II' => ['2018–', ['T4', 'T5', 'B4', 'B5', 'D3', 'D4']],
@@ -1381,6 +1385,7 @@ final class VehicleCatalog
                 '300C (LD)' => ['2011–2014', ['3.6 V6', '3.0 CRD']],
             ]],
             'Dodge' => ['slug' => 'dodge', 'models' => [
+                'Durango III' => ['2011–', ['3.6 V6', '5.7 V8 HEMI', '6.4 V8 SRT']],
                 'Caliber' => ['2006–2012', ['1.8', '2.0', '2.4', '2.0 CRD', '2.2 CRD']],
                 'Avenger' => ['2007–2010', ['2.0', '2.4', '2.0 CRD']],
                 'Journey' => ['2008–2011', ['2.4', '2.7 V6', '2.0 CRD']],

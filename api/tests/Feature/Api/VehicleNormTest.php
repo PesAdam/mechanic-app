@@ -233,7 +233,7 @@ class VehicleNormTest extends TestCase
         $this->postJson('/api/v1/car-makes/import-defaults')->assertOk();
 
         // JNK = Infiniti passenger car built in Japan, CV6 = G37 sedan, char 10 "9" = model year 2009.
-        $this->getJson('/api/v1/vehicles/lookup?q=JNKCV61E09M123456')
+        $this->getJson('/api/v1/vehicles/lookup?q=JNKCV61E29M300882')
             ->assertOk()
             ->assertJsonPath('vin.make', 'Infiniti')
             ->assertJsonPath('vin.year', 2009)
