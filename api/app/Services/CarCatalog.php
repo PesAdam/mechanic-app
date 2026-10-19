@@ -49,7 +49,8 @@ final class CarCatalog
                 if (! $model) {
                     $model = CarModel::query()->create(['car_make_id' => $make->id, 'name' => $modelName, 'years' => $years]);
                     $models->push($model);
-                } elseif ($years && ! $model->years) {
+                } elseif ($years && $model->years !== $years) {
+                    // Production years are catalogue facts, not something the shop edits: keep them in step.
                     $model->update(['years' => $years]);
                 }
                 $existing = $model->engines()->get();

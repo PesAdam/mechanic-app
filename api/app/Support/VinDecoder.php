@@ -135,7 +135,7 @@ final class VinDecoder
         // Fiat / Alfa: type code at chars 4–6.
         'Fiat' => ['at' => [[4, 3]], 'codes' => [
             '188' => 'Punto II', '199' => 'Punto III (Grande/Evo)', '312' => '500', '169' => 'Panda II', '319' => 'Panda III',
-            '356' => 'Tipo', '263' => 'Doblo II', '250' => 'Ducato',
+            '356' => 'Tipo', '263' => 'Doblo II', '250' => 'Ducato III',
         ]],
         'Alfa Romeo' => ['at' => [[4, 3]], 'codes' => ['939' => '159', '940' => 'Giulietta', '952' => 'Giulia', '949' => 'Stelvio']],
         // Volvo: model code at chars 4–5.
