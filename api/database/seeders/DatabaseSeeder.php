@@ -75,10 +75,10 @@ class DatabaseSeeder extends Seeder
                 ['code' => 'P0401', 'description' => 'Nedostatočný prietok recirkulácie výfukových plynov (EGR)', 'unit' => 'Motor · 01', 'status' => 'fixed'],
                 ['code' => 'P2002', 'description' => 'Účinnosť filtra pevných častíc pod prahom', 'unit' => 'Motor · 01', 'status' => 'watch'],
             ]);
-        $this->operations($order, ['Výmena brzdových kotúčov a platničiek vpredu', 'Výmena snímača EGR', 'Diagnostika riadiacich jednotiek', 'Skúšobná jazda']);
+        $this->operations($order, ['Výmena brzdových kotúčov a platničiek vpredu', 'Výmena EGR ventilu', 'Diagnostika riadiacich jednotiek', 'Skúšobná jazda']);
         $order->workEntries()->createMany([
             ['user_id' => $adam->id, 'started_at' => $at('10:05'), 'ended_at' => $at('11:35'), 'note' => 'Demontáž a výmena brzdových kotúčov a platničiek vpredu'],
-            ['user_id' => $marek->id, 'started_at' => $at('13:10'), 'ended_at' => $at('14:00'), 'note' => 'Výmena snímača EGR, adaptácia riadiacej jednotky'],
+            ['user_id' => $marek->id, 'started_at' => $at('13:10'), 'ended_at' => $at('14:00'), 'note' => 'Výmena EGR ventilu, adaptácia riadiacej jednotky'],
             ['user_id' => $adam->id, 'started_at' => now()->subMinutes(31), 'note' => 'Diagnostika, skúšobná jazda, kontrola brzdného účinku'],
         ]);
 

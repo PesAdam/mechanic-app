@@ -67,14 +67,14 @@ test('stopky sa spúšťajú a prepínajú na konkrétny úkon', async ({ page }
   await loginViaApi(page, MECHANIC)
   await page.goto('/m/zakazky/1') // #0231 from the seeder: four jobs, open
 
-  await page.getByRole('button', { name: 'Štart · Výmena snímača EGR' }).click()
-  await expect(page.getByText('Robím ·')).toContainText('Výmena snímača EGR')
-  await expect(page.getByRole('button', { name: 'Pauza · Výmena snímača EGR' })).toBeVisible()
+  await page.getByRole('button', { name: 'Štart · Výmena EGR ventilu' }).click()
+  await expect(page.getByText('Robím ·')).toContainText('Výmena EGR ventilu')
+  await expect(page.getByRole('button', { name: 'Pauza · Výmena EGR ventilu' })).toBeVisible()
 
   // Another job's ▶ switches: the first stint closes, the new one runs.
   await page.getByRole('button', { name: 'Štart · Skúšobná jazda' }).click()
   await expect(page.getByText('Robím ·')).toContainText('Skúšobná jazda')
-  await expect(page.getByRole('button', { name: 'Štart · Výmena snímača EGR' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Štart · Výmena EGR ventilu' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Pauza', exact: true }).click()
   // The big button offers to continue the job that was just paused.

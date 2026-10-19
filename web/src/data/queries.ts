@@ -137,7 +137,8 @@ export function useOrderActions() {
       return o
     },
     addOperation: (id: number, body: { operation_id: number } | { name: string; norm_minutes: number }) => call(`/orders/${id}/operations`, { method: 'POST', json: body }),
-    updateOrderOperation: (opId: number, patch: { done?: boolean; name?: string; norm_minutes?: number }) => call(`/order-operations/${opId}`, { method: 'PATCH', json: patch }),
+    updateOrderOperation: (opId: number, patch: { done?: boolean; name?: string; norm_minutes?: number }) => call(`/order-operations/${opId}`, { method: 'PATCH', json: patch })
+      .then(order => { if (patch.norm_minutes !== undefined) void qc.invalidateQueries({ queryKey: ['operations'] }); return order }), // an edited norm is kept for the car's model
     removeOrderOperation: (opId: number) => call(`/order-operations/${opId}`, { method: 'DELETE' }),
     updateOrder: (id: number, patch: OrderPatch) =>
       call(`/orders/${id}`, { method: 'PATCH', json: patch }),

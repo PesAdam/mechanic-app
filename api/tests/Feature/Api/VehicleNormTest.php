@@ -7,6 +7,7 @@ use App\Models\CarMake;
 use App\Models\CarModel;
 use App\Models\Operation;
 use App\Models\OperationNorm;
+use App\Models\OperationSample;
 use App\Models\User;
 use App\Models\WorkEntry;
 use App\Models\WorkOrder;
@@ -308,5 +309,88 @@ class VehicleNormTest extends TestCase
 
         $this->deleteJson("/api/v1/car-makes/{$make->id}")->assertConflict();
         $this->assertDatabaseHas('car_makes', ['id' => $make->id]);
+    }
+
+    public function test_default_norm_is_scaled_to_the_cars_difficulty(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        [$model, $engine] = $this->mazda6();
+        $oil = Operation::factory()->create(['category' => 'servis', 'norm_minutes' => 60]);
+        $chain = Operation::factory()->create(['category' => 'motor', 'norm_minutes' => 300]);
+        $test = Operation::factory()->create(['category' => 'diagnostika', 'norm_minutes' => 30]);
+
+        // The owner's own example: 1 h on an Octavia I is 1 h 10 min on a Mazda 6 (GH).
+        $this->getJson("/api/v1/operations?car_model_id={$model->id}")
+            ->assertJsonFragment(['id' => $oil->id, 'car_norm_minutes' => 70, 'car_norm_source' => 'vehicle'])
+            ->assertJsonFragment(['id' => $test->id, 'car_norm_minutes' => 30, 'car_norm_source' => 'default']);
+        // Engine jobs also follow the engine: 300 × 1.15 (model) × 1.10 (2.2 MZR-CD) ≈ 380.
+        $this->getJson("/api/v1/operations?car_model_id={$model->id}&car_engine_id={$engine->id}")
+            ->assertJsonFragment(['id' => $chain->id, 'car_norm_minutes' => 380, 'car_norm_source' => 'vehicle']);
+
+        $order = WorkOrder::factory()->open()->create();
+        $order->car->update(['car_model_id' => $model->id, 'car_engine_id' => $engine->id]);
+        $this->postJson("/api/v1/orders/{$order->id}/operations", ['operation_id' => $oil->id])
+            ->assertJsonPath('data.operations.0.norm_minutes', 70);
+    }
+
+    public function test_a_car_outside_the_catalogue_keeps_the_default_norm(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $make = CarMake::query()->create(['name' => 'Mazda']);
+        $model = CarModel::query()->create(['car_make_id' => $make->id, 'name' => 'Vlastný model']);
+        $job = Operation::factory()->create(['category' => 'servis', 'norm_minutes' => 60]);
+
+        $this->getJson("/api/v1/operations?car_model_id={$model->id}")
+            ->assertJsonFragment(['id' => $job->id, 'car_norm_minutes' => 60, 'car_norm_source' => 'default']);
+    }
+
+    public function test_a_norm_corrected_on_an_order_is_remembered_for_the_model(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        [$model, $engine] = $this->mazda6();
+        $oil = Operation::factory()->create(['category' => 'servis', 'norm_minutes' => 60]);
+        $belt = Operation::factory()->create(['category' => 'motor', 'norm_minutes' => 240]);
+        $order = WorkOrder::factory()->open()->create();
+        $order->car->update(['car_model_id' => $model->id, 'car_engine_id' => $engine->id]);
+        $this->postJson("/api/v1/orders/{$order->id}/operations", ['operation_id' => $oil->id])->assertOk();
+        $this->postJson("/api/v1/orders/{$order->id}/operations", ['operation_id' => $belt->id])->assertOk();
+        [$oilJob, $beltJob] = $order->operations()->orderBy('sort')->get();
+
+        $this->patchJson("/api/v1/order-operations/{$oilJob->id}", ['norm_minutes' => 75])->assertOk();
+        $this->patchJson("/api/v1/order-operations/{$beltJob->id}", ['norm_minutes' => 330])->assertOk();
+
+        $this->assertDatabaseHas('operation_norms', ['operation_id' => $oil->id, 'car_model_id' => $model->id, 'car_engine_id' => null, 'norm_minutes' => 75]);
+        $this->assertDatabaseHas('operation_norms', ['operation_id' => $belt->id, 'car_model_id' => $model->id, 'car_engine_id' => $engine->id, 'norm_minutes' => 330]);
+        $next = WorkOrder::factory()->open()->create();
+        $next->car->update(['car_model_id' => $model->id]);
+        $this->postJson("/api/v1/orders/{$next->id}/operations", ['operation_id' => $oil->id])
+            ->assertJsonPath('data.operations.0.norm_minutes', 75);
+    }
+
+    public function test_duplicate_jobs_are_merged_and_generic_names_made_specific(): void
+    {
+        $old = Operation::factory()->create(['name' => 'Výmena kompresora klimatizácie', 'norm_minutes' => 180]);
+        $kept = Operation::factory()->create(['name' => 'Výmena kompresora klimatizácie s preplachom okruhu a plnením', 'norm_minutes' => 240]);
+        $clutch = Operation::factory()->create(['name' => 'Výmena spojky']);
+        $order = WorkOrder::factory()->open()->create();
+        $job = $order->operations()->create(['operation_id' => $old->id, 'name' => $old->name, 'norm_minutes' => 180]);
+        OperationSample::query()->create(['operation_id' => $old->id, 'work_order_id' => $order->id, 'actual_seconds' => 9000, 'norm_minutes' => 180, 'recorded_at' => now()]);
+
+        (require database_path('migrations/2026_10_19_120000_merge_duplicate_operations.php'))->up();
+
+        $this->assertModelMissing($old);
+        $this->assertSame($kept->id, $job->fresh()->operation_id);
+        $this->assertSame('Výmena kompresora klimatizácie', $job->fresh()->name);
+        $this->assertSame(1, OperationSample::query()->where('operation_id', $kept->id)->count());
+        $this->assertSame('Výmena spojky (predný náhon)', $clutch->fresh()->name);
+    }
+
+    /** @return array{CarModel, CarEngine} */
+    private function mazda6(): array
+    {
+        $make = CarMake::query()->create(['name' => 'Mazda']);
+        $model = CarModel::query()->create(['car_make_id' => $make->id, 'name' => '6 (GH)']);
+
+        return [$model, CarEngine::query()->create(['car_model_id' => $model->id, 'name' => '2.2 MZR-CD'])];
     }
 }

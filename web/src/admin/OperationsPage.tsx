@@ -11,7 +11,7 @@ import VehiclePicker, { EMPTY_VEHICLE, type VehicleValue } from '../components/V
 
 const CATEGORIES = OPERATION_CATEGORIES.map(([k]) => k)
 const VEHICLE_KEY = 'mechanic-app:ukony-vehicle'
-const SOURCE_LABEL = { engine: 'motorizácia', model: 'model', make: 'značka', default: 'všeobecná' } as const
+const SOURCE_LABEL = { engine: 'motorizácia', model: 'model', make: 'značka', vehicle: 'podľa auta', default: 'všeobecná' } as const
 
 const readVehicle = (): VehicleValue => {
   try { const raw = localStorage.getItem(VEHICLE_KEY); return raw ? { ...EMPTY_VEHICLE, ...(JSON.parse(raw) as VehicleValue) } : EMPTY_VEHICLE } catch { return EMPTY_VEHICLE }

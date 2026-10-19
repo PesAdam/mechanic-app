@@ -53,7 +53,7 @@ export default function AddOperationDialog({ open, onClose, orderId, carModelId,
             <button key={o.id} type="button" className="op-pick" disabled={busy} onClick={() => void run(() => addOperation(orderId, { operation_id: o.id }))}>
               <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontSize: 14 }}>{o.name}</span><span className="muted" style={{ fontSize: 11 }}>
                 {categoryLabel(o.category)}
-                {o.car_norm_source === 'engine' ? ' · norma pre túto motorizáciu' : o.car_norm_source === 'model' ? ' · norma pre tento model' : o.car_norm_source === 'make' ? ' · norma pre značku' : ''}
+                {o.car_norm_source === 'engine' ? ' · norma pre túto motorizáciu' : o.car_norm_source === 'model' ? ' · norma pre tento model' : o.car_norm_source === 'make' ? ' · norma pre značku' : o.car_norm_source === 'vehicle' ? ' · čas upravený pre toto auto' : ''}
                 {o.car_avg_seconds ? ` · priemer na tomto modeli ${hm(o.car_avg_seconds)} (${o.car_samples_count}×)` : o.avg_seconds ? ` · tvoj priemer ${hm(o.avg_seconds)} (${o.samples_count}×)` : ''}
               </span></span>
               <span className="hd num" style={{ whiteSpace: 'nowrap' }}>{hm((o.car_norm_minutes ?? o.norm_minutes) * 60)}</span>

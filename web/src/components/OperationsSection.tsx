@@ -21,6 +21,12 @@ export default function OperationsSection({ order, closed, title = true, now, ra
   const actions = useOrderActions()
   const act = useAction()
   const [addOpen, setAddOpen] = useState(false)
+  const [editing, setEditing] = useState<{ id: number; minutes: string } | null>(null)
+  const saveNorm = (id: number, minutes: string) => {
+    const m = Math.round(Number(minutes))
+    if (!Number.isFinite(m) || m < 1 || m > 6000) return
+    void act.run(async () => { await actions.updateOrderOperation(id, { norm_minutes: m }); setEditing(null) })
+  }
   const norm = normSeconds(order)
   const mine = user ? runningEntryOf(order, user.id) : null
   const avgOf = (operationId: number | null) => (operationId ? catalog.data?.find(o => o.id === operationId) : undefined)
@@ -49,7 +55,18 @@ export default function OperationsSection({ order, closed, title = true, now, ra
                 </span>
                 <span className="muted" style={{ display: 'block', fontSize: 11 }}>
                   {(seconds > 0 || live) && <><span className={`num ${normClass(seconds, op.norm_minutes * 60)}`} style={{ fontWeight: 600 }}>{live ? hms(seconds) : hm(seconds)}</span> · </>}
-                  norma {hm(op.norm_minutes * 60)}
+                  {editing?.id === op.id ? (
+                    <form style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onSubmit={e => { e.preventDefault(); saveNorm(op.id, editing.minutes) }}>
+                      norma <input className="input num" type="number" inputMode="numeric" min={1} max={6000} step={5} autoFocus aria-label={`Norma v minútach · ${op.name}`}
+                        style={{ width: 70, minHeight: 28, padding: '2px 6px', fontSize: 12 }} value={editing.minutes} disabled={act.busy}
+                        onChange={e => setEditing({ id: op.id, minutes: e.target.value })} onKeyDown={e => { if (e.key === 'Escape') setEditing(null) }} /> min
+                      <button type="submit" className="linkbtn" disabled={act.busy}>Uložiť</button>
+                      <button type="button" className="linkbtn" onClick={() => setEditing(null)}>Zrušiť</button>
+                    </form>
+                  ) : !closed && op.operation_id ? (
+                    <button type="button" className="linkbtn" style={{ fontSize: 11 }} title={`Upraviť normu · zapamätá sa pre ${carName(order.car)}`}
+                      onClick={() => setEditing({ id: op.id, minutes: String(op.norm_minutes) })}>norma {hm(op.norm_minutes * 60)}</button>
+                  ) : <>norma {hm(op.norm_minutes * 60)}</>}
                   {seconds > 0 && <> · <NormBadge seconds={seconds} normSeconds={op.norm_minutes * 60} rate={rate} size={11} /></>}
                   {avg}
                 </span>

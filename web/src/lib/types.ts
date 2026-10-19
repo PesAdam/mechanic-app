@@ -37,7 +37,7 @@ export interface Operation {
   id: number; name: string; category: string; norm_minutes: number; is_active: boolean; samples_count: number; avg_seconds: number | null
   norms: OperationNorm[]
   /** Present when the catalogue was asked for a specific car model. */
-  car_norm_minutes?: number; car_norm_source?: 'engine' | 'model' | 'make' | 'default'; car_norm_id?: number | null; car_avg_seconds?: number | null; car_samples_count?: number
+  car_norm_minutes?: number; car_norm_source?: 'engine' | 'model' | 'make' | 'vehicle' | 'default'; car_norm_id?: number | null; car_avg_seconds?: number | null; car_samples_count?: number
 }
 /** A job picked on an order (name and norm are snapshots). `seconds` = time clocked against it as of the server response. */
 export interface OrderOperation {

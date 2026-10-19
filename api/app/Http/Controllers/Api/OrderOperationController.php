@@ -50,6 +50,9 @@ class OrderOperationController extends Controller
 
         DB::transaction(function () use ($request, $order, $orderOperation, $data): void {
             $orderOperation->update($data);
+            if (isset($data['norm_minutes'])) {
+                Norms::remember($orderOperation, $order->car, $data['norm_minutes']);
+            }
 
             // Ticking a job off moves the caller's stopwatch on to the next open job (or to plain order time)
             // instead of stopping it: the car is still on the lift. Colleagues clocked against the job keep running.
