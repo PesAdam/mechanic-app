@@ -7,6 +7,7 @@ use App\Models\OrderOperation;
 use App\Models\Part;
 use App\Models\Photo;
 use App\Models\WorkEntry;
+use App\Services\CustomerReport;
 use App\Services\LaborSplit;
 use App\Services\OrderTotals;
 use App\Services\Settings;
@@ -15,15 +16,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class WorkOrderResource extends JsonResource
 {
+    /** The unauthenticated customer view: only what the report prints, nothing that reveals the rate, purchase prices or the team. */
+    private bool $public = false;
+
+    public function forPublic(): static
+    {
+        $this->public = true;
+
+        return $this;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         $now = now();
         $rate = Settings::rate();
+        $mode = Settings::reportLabor();
         $totals = OrderTotals::compute($this->resource, $rate, $now);
         $split = LaborSplit::seconds($this->resource, $now)['by_op'];
+        $amounts = LaborSplit::amounts($this->resource, $totals, $split);
 
-        return [
+        $data = [
             'id' => $this->id,
             'number' => $this->number,
             'status' => $this->status->value,
@@ -91,6 +104,7 @@ class WorkOrderResource extends JsonResource
                 'id' => $e->id,
                 'user' => ['id' => $e->user->id, 'name' => $e->user->name],
                 'order_operation_id' => $e->order_operation_id,
+                'auto_closed' => (bool) $e->auto_closed,
                 'started_at' => $e->started_at->toISOString(),
                 'ended_at' => $e->ended_at?->toISOString(),
                 'seconds' => $e->seconds($now),
@@ -105,11 +119,48 @@ class WorkOrderResource extends JsonResource
                 'done' => $o->done,
                 // Time clocked against this job so far (running stints included, as of this response).
                 'seconds' => (int) $this->workEntries->where('order_operation_id', $o->id)->sum(fn (WorkEntry $e) => $e->seconds($now)),
-                // What the customer is billed for this job: its share of the measured time, or its norm when billing by norms.
+                // What the customer is billed for this job: its share of the measured time and its share of the labour total.
                 'billed_seconds' => $split[$o->id] ?? 0,
-                'amount' => round(($totals['labor_billing'] === 'norm' ? $o->norm_minutes * 60 : ($split[$o->id] ?? 0)) / 3600 * $rate, 2),
+                'amount' => $amounts[$o->id] ?? 0.0,
             ])->values(),
             'totals' => $totals,
+            'report' => CustomerReport::build($this->resource, $totals, $split, $amounts, $mode, $now),
         ];
+
+        return $this->public ? self::publicView($data, $mode) : $data;
+    }
+
+    /**
+     * Strips the staff payload down to the customer's report. In the "price" and "total" modes no labour
+     * time leaves the server (time and amount together give the rate away); purchase prices, the margin,
+     * the mechanics and internal notes never do.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private static function publicView(array $data, string $mode): array
+    {
+        $times = $mode === 'time';
+        $nc = $data['parts_pricing'] === 'nc';
+
+        $data['summary'] = '';
+        $data['lift'] = null;
+        $data['mechanic'] = null;
+        $data['planned_at'] = null;
+        $data['planned_minutes'] = null;
+        $data['total_original'] = null;
+        $data['total_override'] = null;
+        $data['work_entries'] = [];
+        // The customer sees the price he pays per part, whichever price list the order bills.
+        $data['parts'] = collect($data['parts'])->map(fn (array $p) => [...$p, 'price' => $nc ? ($p['purchase_price'] ?? $p['price']) : $p['price'], 'purchase_price' => null])->values();
+        $data['operations'] = collect($data['operations'])->map(fn (array $o) => [
+            'id' => $o['id'], 'operation_id' => null, 'name' => $o['name'], 'done' => $o['done'],
+            'norm_minutes' => $times ? $o['norm_minutes'] : 0, 'seconds' => 0,
+            'billed_seconds' => $times ? $o['billed_seconds'] : 0, 'amount' => $mode === 'price' ? $o['amount'] : 0.0,
+        ])->values();
+        $keep = ['labor', 'parts', 'grand', 'grand_computed', 'labor_billing', 'parts_pricing', ...($times ? ['seconds', 'norm_seconds'] : [])];
+        $data['totals'] = array_intersect_key($data['totals'], array_flip($keep));
+
+        return $data;
     }
 }

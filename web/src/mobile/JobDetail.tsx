@@ -43,8 +43,9 @@ export default function JobDetail() {
   const [editPart, setEditPart] = useState<Part | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
-  const [assignOpen, setAssignOpen] = useState(false)
-  const [stopOpen, setStopOpen] = useState(false)
+  // The sheets remember the stint they were opened for, so a stale sheet never acts on a newer stint.
+  const [assignFor, setAssignFor] = useState<number | null>(null)
+  const [filedFor, setFiledFor] = useState<number | null>(null)
   const [planOpen, setPlanOpen] = useState(false)
   const diagInput = useRef<HTMLInputElement>(null)
 
@@ -76,10 +77,11 @@ export default function JobDetail() {
   }
   const toggleTimer = () => {
     if (!mine) return void act.run(() => actions.startTimer(order.id, startOp ? { order_operation_id: startOp.id } : {}))
-    // Pausing a stint that has no job while the order has open jobs: ask what it was, stop and file in one go.
-    if (mine.order_operation_id === null && openOps.length) return setStopOpen(true)
-    void act.run(() => actions.stopTimer(order.id))
+    // Pauza always stops; a stint without a job then gets an optional "Čo si robil?" to file it under one.
+    const ask = mine.order_operation_id === null && openOps.length > 0 ? mine.id : null
+    void act.run(async () => { await actions.stopTimer(order.id); if (ask !== null) setFiledFor(ask) })
   }
+  const filedEntry = filedFor !== null ? order.work_entries.find(e => e.id === filedFor && e.ended_at && e.order_operation_id === null) ?? null : null
 
   return (
     <div className="phone">
@@ -116,7 +118,7 @@ export default function JobDetail() {
               <div className={`hd num ${normClass(opSeconds(order, runningOp.id, now), runningOp.norm_minutes * 60)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(opSeconds(order, runningOp.id, now))}</div>
               <div style={{ fontSize: 12 }}>Norma {hm(runningOp.norm_minutes * 60)} · <NormBadge seconds={opSeconds(order, runningOp.id, now)} normSeconds={runningOp.norm_minutes * 60} rate={rate} /></div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Dnes na aute {hm(session)} · celkom {hm(t.seconds)} · {eur(t.labor)}</div>
-              <div style={{ fontSize: 13, marginTop: 8 }}><button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>zmeniť úkon</button></div>
+              <div style={{ fontSize: 13, marginTop: 8 }}><button type="button" className="linkbtn" onClick={() => mine && setAssignFor(mine.id)}>zmeniť úkon</button></div>
             </>
           ) : (
             <>
@@ -127,7 +129,7 @@ export default function JobDetail() {
               <div className="muted" style={{ fontSize: 12 }}>Celkom na aute {hm(t.seconds)} · {eur(t.labor)}</div>
               {t.norm_seconds > 0 && <div style={{ fontSize: 12, marginTop: 4 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} /></div>}
               {mine && !closed && (
-                <div style={{ fontSize: 13, marginTop: 8 }}>Čas bez úkonu{order.operations.length ? <> · <button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>priradiť k úkonu</button></> : null}</div>
+                <div style={{ fontSize: 13, marginTop: 8 }}>Čas bez úkonu{order.operations.length ? <> · <button type="button" className="linkbtn" onClick={() => setAssignFor(mine.id)}>priradiť k úkonu</button></> : null}</div>
               )}
             </>
           )}
@@ -227,8 +229,8 @@ export default function JobDetail() {
       </div>
 
       <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} operations={order.operations} />
-      <AssignEntryDialog open={assignOpen} onClose={() => setAssignOpen(false)} order={order} entry={mine} />
-      <AssignEntryDialog open={stopOpen} onClose={() => setStopOpen(false)} order={order} entry={mine} title="Čo si robil?" onPick={opId => actions.stopTimer(order.id, opId === null ? {} : { order_operation_id: opId })} />
+      <AssignEntryDialog open={!!mine && assignFor === mine.id} onClose={() => setAssignFor(null)} order={order} entry={mine} />
+      <AssignEntryDialog open={!!filedEntry} onClose={() => setFiledFor(null)} order={order} entry={filedEntry} title="Čo si robil?" />
       {planOpen && <PlanDialog compact draft={{ order, date: order.planned_at ? dateOf(order.planned_at) : dateOf(new Date(now).toISOString()), time: order.planned_at ? timeOf(order.planned_at) : '08:00' }} busy={act.busy} onClose={() => setPlanOpen(false)}
         onSave={(o, patch) => void act.run(() => actions.updateOrder(o.id, patch)).then(() => setPlanOpen(false))} />}
       <AddPartDialog open={partOpen} onClose={() => setPartOpen(false)} orderId={order.id} />

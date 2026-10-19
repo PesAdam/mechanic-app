@@ -171,7 +171,9 @@ class TimerControllerTest extends TestCase
         $this->getJson('/api/v1/orders')->assertOk();
 
         $this->assertSame('2026-10-20 03:02:00', $forgotten->fresh()->ended_at->toDateTimeString());
-        $this->assertStringContainsString('auto-ukončené', $forgotten->fresh()->note);
+        $this->assertTrue($forgotten->fresh()->auto_closed);
+        $this->assertNull($forgotten->fresh()->note); // the flag is for the owner; the note stays the mechanic's text for the report
         $this->assertNull($fresh->fresh()->ended_at);
+        $this->assertFalse($fresh->fresh()->auto_closed);
     }
 }

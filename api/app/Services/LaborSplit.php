@@ -46,7 +46,8 @@ final class LaborSplit
         // Jobs without their own time take the forgotten time; once something is ticked off, only ticked jobs are candidates.
         $anyDone = $ops->contains(fn (OrderOperation $op) => $op->done);
         $orphans = $ops->filter(fn (OrderOperation $op) => ($assigned[$op->id] ?? 0) === 0 && (! $anyDone || $op->done));
-        $targets = $orphans->isNotEmpty() ? $orphans : $ops;
+        // Without such jobs: the ticked ones (never a job nobody did), or all of them while nothing is ticked yet.
+        $targets = $orphans->isNotEmpty() ? $orphans : ($anyDone ? $ops->filter(fn (OrderOperation $op) => $op->done) : $ops);
         $normSum = max(1, (int) $targets->sum('norm_minutes'));
 
         $given = 0;
@@ -62,5 +63,46 @@ final class LaborSplit
         }
 
         return ['by_op' => $byOp, 'unassigned' => 0];
+    }
+
+    /**
+     * The labour total spread over the jobs in whole cents (largest remainder), so the prices
+     * printed per job add up to "Spolu práca" exactly. Shares follow the norms when billing by
+     * norms, the attributed time otherwise.
+     *
+     * @param  array<string, mixed>  $totals  OrderTotals::compute()
+     * @param  array<int, int>  $byOp  seconds()['by_op']
+     * @return array<int, float>
+     */
+    public static function amounts(WorkOrder $order, array $totals, array $byOp): array
+    {
+        $byNorm = $totals['labor_billing'] === 'norm';
+        $basis = [];
+        foreach ($order->operations as $op) {
+            $basis[$op->id] = $byNorm ? $op->norm_minutes * 60 : ($byOp[$op->id] ?? 0);
+        }
+        $sum = array_sum($basis);
+        $target = (int) round($totals['labor'] * 100);
+        if ($sum <= 0 || $target <= 0) {
+            return array_map(fn () => 0.0, $basis);
+        }
+
+        $exact = array_map(fn ($b) => $b * $target / $sum, $basis);
+        $cents = array_map(fn ($v) => (int) floor($v + 1e-9), $exact);
+        $remainders = [];
+        foreach ($exact as $id => $value) {
+            $remainders[$id] = $value - $cents[$id];
+        }
+        arsort($remainders);
+        $left = $target - array_sum($cents);
+        foreach (array_keys($remainders) as $id) {
+            if ($left <= 0) {
+                break;
+            }
+            $cents[$id]++;
+            $left--;
+        }
+
+        return array_map(fn ($c) => $c / 100, $cents);
     }
 }

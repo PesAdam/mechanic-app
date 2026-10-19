@@ -43,4 +43,16 @@ class OperationSeederTest extends TestCase
         $this->assertSame(1, Operation::query()->where('name', 'Výmena spojky')->count());
         $this->assertContains('Výmena brzdových platničiek vpredu', json_decode((string) Setting::get(OperationSeeder::SEEDED_KEY), true));
     }
+
+    public function test_first_run_on_an_upgraded_install_does_not_bring_back_deleted_jobs(): void
+    {
+        // An install from before the expansion: the old catalogue minus a job the shop deleted, and no seeding record yet.
+        Operation::query()->create(['name' => 'Výmena spojky', 'category' => 'prevodovka', 'norm_minutes' => 300]);
+
+        $this->seed(OperationSeeder::class);
+
+        $this->assertDatabaseMissing('operations', ['name' => 'Výmena čelného skla']); // an old job, deleted on purpose
+        $this->assertDatabaseHas('operations', ['name' => 'Výmena brzdových platničiek vzadu (elektrická parkovacia brzda)']); // new in the expansion
+        $this->assertSame(1, Operation::query()->where('name', 'Výmena spojky')->count());
+    }
 }

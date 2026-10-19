@@ -16,7 +16,7 @@ class PublicReportController extends Controller
         $order = WorkOrder::query()->withEverything()->where('public_token', $token)->firstOrFail();
 
         return response()->json([
-            'order' => new WorkOrderResource($order),
+            'order' => (new WorkOrderResource($order))->forPublic(),
             'settings' => Settings::publicPayload(),
         ]);
     }

@@ -139,14 +139,22 @@ export default function CalendarPage() {
   )
 }
 
-/** Greedy lane packing: blocks that overlap in time share the column width instead of hiding each other. */
+/**
+ * Greedy lane packing: blocks that overlap on screen share the column width instead of hiding each other.
+ * A plan before 7:00 or after 18:00 is pinned to the edge of the grid (its label keeps the real time),
+ * and packing uses the drawn extents, so short or clamped blocks never cover a neighbour.
+ */
 function layout(orders: Order[]): Block[] {
+  const lo = DAY_START * 60
+  const hi = DAY_END * 60
+  const minMinutes = (28 / HOUR_PX) * 60
   const blocks: Block[] = orders
     .map(o => {
       const start = new Date(o.planned_at as string)
-      const startMin = start.getHours() * 60 + start.getMinutes()
-      const endMin = startMin + plannedMinutes(o)
-      return { order: o, startMin, endMin, top: Math.max(0, ((startMin - DAY_START * 60) / 60) * HOUR_PX), height: Math.max(28, (plannedMinutes(o) / 60) * HOUR_PX), lane: 0, lanes: 1 }
+      const real = start.getHours() * 60 + start.getMinutes()
+      const startMin = Math.min(Math.max(real, lo), hi - minMinutes)
+      const endMin = Math.max(startMin + minMinutes, Math.min(real + plannedMinutes(o), hi))
+      return { order: o, startMin, endMin, top: ((startMin - lo) / 60) * HOUR_PX, height: ((endMin - startMin) / 60) * HOUR_PX, lane: 0, lanes: 1 }
     })
     .sort((a, b) => a.startMin - b.startMin || a.order.id - b.order.id)
   // Clusters of transitively overlapping blocks share the same lane count.

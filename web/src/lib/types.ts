@@ -58,6 +58,8 @@ export interface WorkEntry {
   seconds: number
   note: string | null
   manual: boolean
+  /** Closed by the system after nobody paused it for 10 h: the owner should check the time. */
+  auto_closed: boolean
 }
 
 export interface Photo { id: number; url: string | null; label: string; stage: PhotoStage; taken_at: string }
@@ -95,6 +97,14 @@ export interface Order {
   work_entries: WorkEntry[]
   operations: OrderOperation[]
   totals: Totals
+  /** What the customer's report prints for labour, built on the server (rows follow the report_labor setting). */
+  report: CustomerReport
+}
+
+export interface CustomerReport {
+  rows: { label: string; seconds: number | null; amount: number | null }[]
+  /** First to last record of the order, for the "09:40 – 15:05" line. */
+  period: { from: string; to: string } | null
 }
 
 export interface Business {

@@ -249,7 +249,7 @@ export default function OrderDetail() {
 function EntryRow({ entry, now, order, closed, busy, onAssign, onRemove }: { entry: WorkEntry; now: number; order: Order; closed: boolean; busy: boolean; onAssign: (opId: number | null) => void; onRemove: () => void }) {
   const running = !entry.ended_at
   const job = (order.operations ?? []).find(op => op.id === entry.order_operation_id)
-  const flagged = !!entry.note && entry.note.includes('auto-ukončené')
+  const flagged = entry.auto_closed
   return (
     <div className="entry-row" style={flagged ? { background: 'var(--color-bad-100)' } : undefined}>
       <div style={{ minWidth: 0 }}>
@@ -264,6 +264,7 @@ function EntryRow({ entry, now, order, closed, busy, onAssign, onRemove }: { ent
         </div>
         <div className={flagged ? 'norm-bad' : 'muted'} style={{ fontSize: 12 }}>
           {skDate(dateOf(entry.started_at))} {timeOf(entry.started_at)}{entry.ended_at ? ` – ${timeOf(entry.ended_at)}` : ' – beží'}{entry.note ? ` · ${entry.note}` : ''}
+          {flagged && ' · stopky nikto nezastavil, ukončené po 10 h – skontrolujte čas'}
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

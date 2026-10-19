@@ -186,4 +186,47 @@ class OrderOperationControllerTest extends TestCase
         $this->assertDatabaseHas('operation_samples', ['operation_id' => $long->id, 'actual_seconds' => 5400]);
         $this->assertDatabaseHas('operation_samples', ['operation_id' => $short->id, 'actual_seconds' => 3000]);
     }
+
+    public function test_forgotten_time_never_goes_to_a_job_nobody_did_and_job_prices_add_up_to_the_labour(): void
+    {
+        $this->freezeTime();
+        Setting::set('hourly_rate', 28);
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $a = $order->operations()->create(['name' => 'A', 'norm_minutes' => 60, 'sort' => 0, 'done' => true]);
+        $b = $order->operations()->create(['name' => 'B', 'norm_minutes' => 120, 'sort' => 1]);
+        $c = $order->operations()->create(['name' => 'C', 'norm_minutes' => 30, 'sort' => 2, 'done' => true]);
+        // A and C were ticked and have their own time; B (declined) has none; 20 min were clocked without a job.
+        WorkEntry::factory()->for($order)->for($user)->create(['order_operation_id' => $a->id, 'started_at' => now()->subMinutes(50), 'ended_at' => now()->subMinutes(30)]);
+        WorkEntry::factory()->for($order)->for($user)->create(['order_operation_id' => $c->id, 'started_at' => now()->subMinutes(30), 'ended_at' => now()->subMinutes(20)]);
+        WorkEntry::factory()->for($order)->for($user)->create(['started_at' => now()->subMinutes(20), 'ended_at' => now()]);
+
+        $data = $this->getJson("/api/v1/orders/{$order->id}")->assertOk()->json('data');
+
+        $ops = collect($data['operations'])->keyBy('name');
+        $this->assertSame(0, $ops['B']['billed_seconds']);
+        $this->assertSame(50 * 60, $ops['A']['billed_seconds'] + $ops['C']['billed_seconds'] + $ops['B']['billed_seconds']);
+        $this->assertEqualsWithDelta($data['totals']['labor'], $ops->sum('amount'), 0.001); // 50 min × 28 €/h = 23,33 €, split to the cent
+        $this->assertSame(['A', 'C'], array_column($data['report']['rows'], 'label'));
+    }
+
+    public function test_job_prices_add_up_to_the_labour_when_each_one_would_round_up(): void
+    {
+        $this->freezeTime();
+        Setting::set('hourly_rate', 28);
+        Setting::set('labor_billing', 'norm');
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->open()->create();
+        foreach (['A', 'B', 'C'] as $i => $name) {
+            $order->operations()->create(['name' => $name, 'norm_minutes' => 10, 'sort' => $i]);
+        }
+
+        $data = $this->getJson("/api/v1/orders/{$order->id}")->assertOk()->json('data');
+
+        // 3 × 10 min at 28 €/h: 4,67 + 4,67 + 4,66 = 14,00 (rounding each one would print 14,01).
+        $this->assertEqualsWithDelta(14.0, $data['totals']['labor'], 0.001);
+        $this->assertEqualsWithDelta(14.0, array_sum(array_column($data['operations'], 'amount')), 0.001);
+        $this->assertEqualsWithDelta(14.0, array_sum(array_column($data['report']['rows'], 'amount')), 0.001);
+    }
 }

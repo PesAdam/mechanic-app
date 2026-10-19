@@ -442,9 +442,28 @@ class OperationSeeder extends Seeder
     /** Names this install has already been offered: a job the shop deleted on purpose is not brought back by the next deploy. */
     public const SEEDED_KEY = 'operations.seeded';
 
+    /** The catalogue before the 2026-10 expansion: an install upgraded from it has already been offered these jobs. */
+    private const LEGACY_NAMES = [
+        'Výmena motorového oleja a olejového filtra', 'Výmena vzduchového filtra', 'Výmena kabínového filtra', 'Výmena palivového filtra (diesel)',
+        'Výmena brzdovej kvapaliny', 'Výmena chladiacej kvapaliny', 'Výmena stieračov', 'Servisná prehliadka a reset intervalu',
+        'Výmena zapaľovacích sviečok (4-valec)', 'Výmena žeraviacich sviečok', 'Výmena brzdových kotúčov a platničiek vpredu',
+        'Výmena brzdových kotúčov a platničiek vzadu', 'Výmena brzdových platničiek vpredu', 'Výmena brzdových platničiek vzadu',
+        'Výmena brzdových čeľustí (bubnové brzdy)', 'Výmena brzdového strmeňa (1 ks)', 'Odvzdušnenie bŕzd', 'Výmena lanka ručnej brzdy',
+        'Výmena rozvodového remeňa s vodným čerpadlom', 'Výmena rozvodovej reťaze', 'Výmena drážkového remeňa', 'Výmena snímača EGR',
+        'Čistenie EGR ventilu', 'Výmena termostatu', 'Výmena vodného čerpadla', 'Výmena turbodúchadla', 'Výmena vstrekovača (1 ks)',
+        'Výmena tesnenia ventilového veka', 'Výmena lôžka motora (1 ks)', 'Výmena tlmičov vpredu (pár)', 'Výmena tlmičov vzadu (pár)',
+        'Výmena ramena nápravy (1 ks)', 'Výmena čapu riadenia (1 ks)', 'Výmena ložiska kolesa (1 ks)', 'Výmena tyčiek stabilizátora (pár)',
+        'Geometria náprav', 'Prezutie pneumatík a vyváženie', 'Výmena homokinetického kĺbu', 'Výmena spojky', 'Výmena spojky s dvojhmotovým zotrvačníkom',
+        'Výmena oleja v prevodovke', 'Výmena alternátora', 'Výmena štartéra', 'Výmena akumulátora', 'Výmena žiarovky', 'Výmena lambda sondy',
+        'Plnenie klimatizácie', 'Výmena kompresora klimatizácie', 'Diagnostika riadiacich jednotiek', 'Skúšobná jazda', 'Vyhľadanie poruchy (hodina)',
+        'Výmena koncového dielu výfuku', 'Výmena čelného skla',
+    ];
+
     public function run(): void
     {
-        $offered = json_decode((string) Setting::get(self::SEEDED_KEY, '[]'), true) ?: [];
+        $stored = Setting::get(self::SEEDED_KEY);
+        // First run of this seeder on an install that already has a catalogue: it came from the old list.
+        $offered = $stored !== null ? (json_decode((string) $stored, true) ?: []) : (Operation::query()->exists() ? self::LEGACY_NAMES : []);
         $existing = Operation::query()->pluck('id', 'name');
 
         foreach (self::CATALOG as $category => $jobs) {

@@ -48,7 +48,14 @@ export default function PlanDialog({ draft, candidates = [], busy, compact = fal
         {draft.order
           ? <div style={{ fontSize: 13 }}><b>{carName(draft.order.car)}</b> · {draft.order.customer.name}<div className="muted" style={{ fontSize: 12 }}>{draft.order.summary}{!compact && <> · <Link to={`/admin/zakazky/${draft.order.id}`}>otvoriť zákazku</Link></>}</div></div>
           : <div className="field"><label htmlFor="pl-order">Zákazka</label>
-            <select id="pl-order" className="input" value={orderId} onChange={e => setOrderId(e.target.value ? Number(e.target.value) : '')} required>
+            <select id="pl-order" className="input" value={orderId} required onChange={e => {
+              const id = e.target.value ? Number(e.target.value) : ''
+              const picked = candidates.find(o => o.id === id)
+              setOrderId(id)
+              // Start from what the order already has, so saving the plan never clears its mechanic or duration.
+              setMinutes(picked?.planned_minutes ? String(picked.planned_minutes) : '')
+              setMechanic(picked?.mechanic?.id ?? '')
+            }}>
               <option value="">— vyberte zákazku —</option>
               {candidates.map(o => <option key={o.id} value={o.id}>#{o.number} · {carName(o.car)} · {o.customer.name}</option>)}
             </select>

@@ -63,12 +63,13 @@ final class VinDecoder
     private const YEAR_CODES = 'ABCDEFGHJKLMNPRSTVWXY123456789';
 
     /**
-     * Per maker: the VDS windows to try in order ([1-based start, length]) and the code table.
+     * Per maker: the VDS windows to try in order ([1-based start, length]) and the code table, or a
+     * list of such schemes (e.g. one per era, each with its own windows) tried in order.
      * Table value = name | [candidates…] | [fromYear => name | [candidates…]] (year split: the
-     * generation current for the model year). A "Cupra:" prefix moves the car to that make
+     * generation current for the model year). A "Make:" prefix moves the car to that make
      * (Cupra shares Seat's WMI).
      *
-     * @var array<string, array{at: list<array{0: int, 1: int}>, codes: array<string, mixed>}>
+     * @var array<string, array{at: list<array{0: int, 1: int}>, codes: array<string, mixed>}|list<array{at: list<array{0: int, 1: int}>, codes: array<string, mixed>}>>
      */
     private const SCHEMES = [
         'Škoda' => ['at' => [[7, 2]], 'codes' => [
@@ -285,17 +286,19 @@ final class VinDecoder
         return (array) ($pick ?? reset($entry));
     }
 
-    /** The maker's table, trying each window of the scheme in order. */
+    /** The maker's table(s), trying each window of each scheme in order; the first hit wins. */
     private static function lookup(?string $make, string $vin): string|array|null
     {
         $scheme = self::SCHEMES[$make] ?? null;
         if ($scheme === null) {
             return null;
         }
-        foreach ($scheme['at'] as [$start, $length]) {
-            $code = substr($vin, $start - 1, $length);
-            if (isset($scheme['codes'][$code])) {
-                return $scheme['codes'][$code];
+        foreach (array_is_list($scheme) ? $scheme : [$scheme] as $part) {
+            foreach ($part['at'] as [$start, $length]) {
+                $code = substr($vin, $start - 1, $length);
+                if (isset($part['codes'][$code])) {
+                    return $part['codes'][$code];
+                }
             }
         }
 

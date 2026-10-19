@@ -108,7 +108,7 @@ class VinDecoderTest extends TestCase
         // Model names like "206" become integer array keys in PHP, hence the cast.
         $catalogue = array_map(fn (array $def) => array_map(strval(...), array_keys($def['models'])), VehicleCatalog::makes());
         $constants = (new ReflectionClass(VinDecoder::class))->getConstants();
-        $tables = array_map(fn (array $scheme) => $scheme['codes'], $constants['SCHEMES']);
+        $tables = array_map(fn (array $scheme) => array_merge(...array_map(fn (array $part) => array_values($part['codes']), array_is_list($scheme) ? $scheme : [$scheme])), $constants['SCHEMES']);
         $tables['Kia'] = array_merge($tables['Kia'], $constants['KIA_OLD']);
 
         $missing = [];

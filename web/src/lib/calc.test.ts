@@ -5,7 +5,7 @@ import type { Order, Part, WorkEntry } from './types'
 const NOW = Date.parse('2026-10-12T10:00:00.000Z')
 const user = { id: 1, name: 'Adam Belko' }
 
-const entry = (over: Partial<WorkEntry>): WorkEntry => ({ id: 1, user, order_operation_id: null, started_at: '2026-10-12T08:00:00.000Z', ended_at: '2026-10-12T09:00:00.000Z', seconds: 3600, note: null, manual: false, ...over })
+const entry = (over: Partial<WorkEntry>): WorkEntry => ({ id: 1, user, order_operation_id: null, started_at: '2026-10-12T08:00:00.000Z', ended_at: '2026-10-12T09:00:00.000Z', seconds: 3600, note: null, manual: false, auto_closed: false, ...over })
 const part = (over: Partial<Part>): Part => ({ id: 1, name: 'Diel', meta: null, price: 100, purchase_price: 80, used: true, added_at: '2026-10-12T08:00:00.000Z', ...over })
 
 /** A bare order; tests override what they measure. */
@@ -15,6 +15,7 @@ const order = (over: Partial<Order>): Order => ({
   car: { id: 1, make: 'Škoda', model: 'Octavia III', engine: '2.0 TDI', car_make_id: 1, car_model_id: 1, car_engine_id: 1, logo_url: null, plate: 'ZA 412 KL', vin: null, km: 0 },
   mechanic: null, parts: [], photos: [], diagnostic: null, work_entries: [], operations: [],
   totals: { seconds: 0, norm_seconds: 0, delta_seconds: null, labor: 0, labor_actual: 0, labor_norm: 0, labor_billing: 'actual', parts: 0, parts_retail: 0, parts_cost: 0, parts_pricing: 'moc', grand_computed: 0, grand: 0 },
+  report: { rows: [], period: null },
   ...over,
 })
 
