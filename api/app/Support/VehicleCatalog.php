@@ -684,6 +684,7 @@ final class VehicleCatalog
                 'Accent I' => ['1994–2000', ['1.3', '1.5', '1.5 16V']],
                 'Accent II' => ['2000–2005', ['1.3', '1.5', '1.5 16V', '1.6 16V', '1.5 CRDi']],
                 'Accent III' => ['2006–2010', ['1.4', '1.6', '1.5 CRDi']],
+                'Accent IV' => ['2011–2017', ['1.4', '1.6 GDi', '1.6 CRDi']],
                 'Lantra' => ['1995–2000', ['1.6', '1.8', '2.0', '1.9 D']],
                 'Elantra III (XD)' => ['2000–2006', ['1.6', '1.8', '2.0', '2.0 CRDi']],
                 'Elantra IV (HD)' => ['2006–2010', ['1.6', '2.0', '1.6 CRDi']],
@@ -1011,7 +1012,7 @@ final class VehicleCatalog
                 'EX90' => ['2024–', ['Twin Motor', 'Twin Motor Performance']],
             ]],
             'Mitsubishi' => ['slug' => 'mitsubishi', 'models' => [
-                'ASX' => ['2010–2023', ['1.6 MIVEC', '2.0 MIVEC', '1.8 DI-D', '2.2 DI-D', '1.6 DI-D']],
+                'ASX I' => ['2010–2023', ['1.6 MIVEC', '2.0 MIVEC', '1.8 DI-D', '2.2 DI-D', '1.6 DI-D']],
                 'Outlander III' => ['2012–2021', ['2.0 MIVEC', '2.4 PHEV', '2.2 DI-D', '2.4 MIVEC', '2.0 PHEV']],
                 'Lancer X' => ['2007–2017', ['1.6 MIVEC', '1.8 MIVEC', '2.0 DI-D', '1.5 MIVEC', '2.0 Ralliart', '1.8 DI-D']],
                 'L200 V' => ['2015–', ['2.4 DI-D', '2.2 DI-D']],

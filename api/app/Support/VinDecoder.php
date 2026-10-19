@@ -8,8 +8,10 @@ namespace App\Support;
  * generation, which lives in the VDS (chars 4–9) in each maker's own scheme.
  *
  * Every maker is a SCHEMES entry: the character windows to try (1-based start, length)
- * and the code table; a few makers need a rule on top (special()). Everything else
- * gets make (+ year where encoded); the model is a hint, never gospel.
+ * and the code table; a few makers need a rule on top (special()). A name may carry a
+ * "Make:" prefix when the VIN belongs to another make than its WMI says (Cupra on Seat's
+ * WMI, a Kia Venga built by Hyundai in Nošovice). Everything else gets make (+ year where
+ * encoded); the model is a hint, never gospel.
  */
 final class VinDecoder
 {
@@ -25,8 +27,9 @@ final class VinDecoder
         'VF1' => 'Renault', 'VF3' => 'Peugeot', 'VR3' => 'Peugeot', 'VF7' => 'Citroën', 'VR7' => 'Citroën',
         'UU1' => 'Dacia',
         'SB1' => 'Toyota', 'JTD' => 'Toyota', 'JTE' => 'Toyota', 'JTM' => 'Toyota', 'JTN' => 'Toyota', 'NMT' => 'Toyota', 'VNK' => 'Toyota',
-        'KMH' => 'Hyundai', 'TMA' => 'Hyundai', 'NLH' => 'Hyundai',
-        'KNA' => 'Kia', 'KNE' => 'Kia', 'U5Y' => 'Kia', 'U6Y' => 'Kia',
+        'KMH' => 'Hyundai', 'TMA' => 'Hyundai', 'NLH' => 'Hyundai', 'MAL' => 'Hyundai', 'KMF' => 'Hyundai',
+        'KM8' => 'Hyundai', '5NP' => 'Hyundai', '5NM' => 'Hyundai',
+        'KNA' => 'Kia', 'KNE' => 'Kia', 'U5Y' => 'Kia', 'U6Y' => 'Kia', 'KND' => 'Kia', '5XY' => 'Kia', '5XX' => 'Kia', '3KP' => 'Kia',
         'VSS' => 'Seat',
         'ZFA' => 'Fiat', 'ZFC' => 'Fiat',
         'SHH' => 'Honda', 'JHM' => 'Honda', 'NLA' => 'Honda',
@@ -53,6 +56,9 @@ final class VinDecoder
      * something else there, so they are deliberately left out.
      */
     private const MODEL_YEAR_MAKES = ['Škoda', 'Volkswagen', 'Audi', 'Seat', 'Cupra', 'Opel', 'Hyundai', 'Kia', 'Honda', 'Volvo', 'Subaru', 'Jeep', 'Land Rover', 'Porsche', 'Jaguar', 'Tesla', 'Infiniti'];
+
+    /** North-American builds of European-sold makes: the make is certain, but their VDS does not follow the EU tables. */
+    private const MAKE_ONLY_WMIS = ['KM8', '5NP', '5NM', 'KND', '5XY', '5XX', '3KP'];
 
     private const YEAR_CODES = 'ABCDEFGHJKLMNPRSTVWXY123456789';
 
@@ -121,7 +127,7 @@ final class VinDecoder
             'FD' => 'Master II', 'JD' => 'Master II', 'ED' => 'Master II', 'MA' => 'Master III', 'FL' => ['Trafic II', 'Trafic III'], 'JL' => ['Trafic II', 'Trafic III'],
         ]],
         'Dacia' => ['at' => [[4, 3]], 'codes' => [
-            'LSD' => ['Logan I', 'Logan II'], 'KSD' => 'Logan MCV', 'BSD' => 'Sandero I', '5SD' => 'Sandero II',
+            'LSD' => ['Logan I', 'Logan II'], 'KSD' => 'Logan MCV I', 'BSD' => 'Sandero I', '5SD' => 'Sandero II',
             'HSD' => 'Duster I', 'HJD' => 'Duster II', 'JSD' => 'Lodgy',
         ]],
         // PSA: model family letter at char 4.
@@ -141,7 +147,7 @@ final class VinDecoder
         // Volvo: model code at chars 4–5.
         'Volvo' => ['at' => [[4, 2]], 'codes' => ['MV' => 'V40 II', 'FW' => 'V60 I', 'ZW' => 'V60 II', 'FS' => 'S60 II', 'BW' => 'V70 III', 'DZ' => 'XC60 I', 'RZ' => 'XC60 II']],
         // Porsche: model code at chars 7–8 (VAG style).
-        'Porsche' => ['at' => [[7, 2]], 'codes' => ['99' => [0 => '911 (997)', 2012 => '911 (991)', 2020 => '911 (992)'], '9P' => 'Cayenne (955/957)', '92' => 'Cayenne (958)', '9Y' => 'Cayenne (9YA)', '95' => 'Macan']],
+        'Porsche' => ['at' => [[7, 2]], 'codes' => ['99' => [0 => '911 (997)', 2012 => '911 (991)', 2020 => '911 (992)'], '9P' => [0 => 'Cayenne (955)', 2008 => 'Cayenne (957)'], '92' => 'Cayenne (958)', '9Y' => 'Cayenne (9YA)', '95' => 'Macan']],
         // Land Rover: model letter at char 4.
         'Land Rover' => ['at' => [[4, 1]], 'codes' => ['V' => 'Range Rover Evoque I', 'Z' => 'Range Rover Evoque II', 'F' => 'Freelander 2', 'C' => 'Discovery Sport']],
         'Tesla' => ['at' => [[4, 1]], 'codes' => ['3' => 'Model 3', 'Y' => 'Model Y', 'S' => 'Model S', 'X' => 'Model X']],
@@ -149,6 +155,65 @@ final class VinDecoder
         'Infiniti' => ['at' => [[4, 3]], 'codes' => [
             'CV6' => 'G37 (V36)', 'CV5' => 'G35 (V35)', 'CV7' => 'Q50 (V37)', 'BV7' => 'Q50 (V37)',
         ]],
+        // Hyundai: line + series + body at chars 4–6 (the body digit separates e.g. i20 III from Bayon), chars 4–5 as the fallback.
+        // The series letter varies within a generation, so every known letter is listed. Source: Czech registry records, EU recalls.
+        'Hyundai' => ['at' => [[4, 3], [4, 2]], 'codes' => [
+            'A8' => 'i10 II', 'A85' => 'i10 II', 'AM' => 'i10 I', 'AM5' => 'i10 I', 'B2' => 'i20 II', 'B3' => 'i20 II',
+            'B35' => 'i20 II', 'BA' => 'i20 I', 'BA5' => 'i20 I', 'BB' => 'i20 I', 'BB5' => 'i20 I', 'BM' => ['i20 III', 'Bayon'],
+            'BM5' => 'i20 III', 'BM8' => 'Bayon', 'BN' => ['i20 III', 'Bayon'], 'BN5' => 'i20 III', 'BN8' => 'Bayon', 'BR' => ['i20 III', 'Bayon'],
+            'BR5' => 'i20 III', 'BR8' => 'Bayon', 'BT' => 'Getz', 'BT3' => 'Getz', 'BT5' => 'Getz', 'BU' => [0 => 'Getz', 2020 => ['i20 III', 'Bayon']],
+            'BU3' => 'Getz', 'BU5' => [0 => 'Getz', 2020 => 'i20 III'], 'C6' => 'Ioniq', 'C65' => 'Ioniq', 'C7' => 'Ioniq', 'C75' => 'Ioniq',
+            'C8' => 'Ioniq', 'C85' => 'Ioniq', 'CG' => 'Accent II', 'CG3' => 'Accent II', 'CG4' => 'Accent II', 'CG5' => 'Accent II',
+            'CM' => 'Accent III', 'CM3' => 'Accent III', 'CM4' => 'Accent III', 'CM5' => 'Accent III', 'CN' => 'Accent III', 'CN3' => 'Accent III',
+            'CN4' => 'Accent III', 'CN5' => 'Accent III', 'CT' => 'Accent IV', 'CT4' => 'Accent IV', 'CT5' => 'Accent IV', 'D3' => 'i30 II',
+            'D35' => 'i30 II', 'D38' => 'i30 II', 'D8' => 'Elantra VI (AD)', 'D84' => 'Elantra VI (AD)', 'DB' => 'i30 I', 'DB5' => 'i30 I',
+            'DB8' => 'i30 I', 'DC' => 'i30 I', 'DC5' => 'i30 I', 'DC8' => 'i30 I', 'DH' => 'Elantra V (MD)', 'DH4' => 'Elantra V (MD)',
+            'DN' => ['i10 III', 'Elantra III (XD)'], 'DN4' => 'Elantra III (XD)', 'DN5' => 'i10 III', 'DR' => 'i10 III', 'DR5' => 'i10 III', 'DU' => 'Elantra IV (HD)',
+            'DU4' => 'Elantra IV (HD)', 'EU' => 'Sonata V (NF)', 'EU4' => 'Sonata V (NF)', 'H3' => 'i30 III', 'H35' => 'i30 III', 'H38' => 'i30 III',
+            'HA' => 'Kona II', 'HA8' => 'Kona II', 'HB' => 'Kona II', 'HB8' => 'Kona II', 'HC' => 'Kona II', 'HC8' => 'Kona II',
+            'HE' => 'Kona II', 'HE8' => 'Kona II', 'HM' => 'Coupe (GK)', 'HM6' => 'Coupe (GK)', 'HN' => 'Coupe (GK)', 'HN6' => 'Coupe (GK)',
+            'J2' => 'Tucson III', 'J3' => 'Tucson III', 'J38' => 'Tucson III', 'JB' => 'Tucson IV', 'JC' => 'Tucson IV', 'JC8' => 'Tucson IV',
+            'JD' => 'Tucson IV', 'JD8' => 'Tucson IV', 'JE' => 'Tucson IV', 'JE8' => 'Tucson IV', 'JF' => 'Tucson IV', 'JN' => 'Tucson I',
+            'JN8' => 'Tucson I', 'JT' => 'ix35', 'JT8' => 'ix35', 'JU' => 'ix35', 'JU8' => 'ix35', 'K1' => 'Kona I',
+            'K2' => 'Kona I', 'K28' => 'Kona I', 'K3' => 'Kona I', 'K38' => 'Kona I', 'K5' => 'Kona I', 'K58' => 'Kona I',
+            'KM' => 'Ioniq 5', 'KM8' => 'Ioniq 5', 'KN' => 'Ioniq 5', 'KN8' => 'Ioniq 5', 'KR' => 'Ioniq 5', 'KR8' => 'Ioniq 5',
+            'LB' => 'i40', 'LB4' => 'i40', 'LB8' => 'i40', 'LC' => 'i40', 'LC4' => 'i40', 'LC8' => 'i40',
+            'LD' => 'i40', 'LD4' => 'i40', 'LD8' => 'i40', 'PM' => 'Matrix', 'PM8' => 'Matrix', 'PT' => 'ix20',
+            'PT8' => 'ix20', 'PU' => 'ix20', 'PU8' => 'ix20', 'S2' => 'Santa Fe IV', 'S28' => 'Santa Fe IV', 'S3' => 'Santa Fe IV',
+            'S38' => 'Santa Fe IV', 'S4' => 'Santa Fe IV', 'S48' => 'Santa Fe IV', 'S5' => 'Santa Fe IV', 'S58' => 'Santa Fe IV', 'SC' => 'Santa Fe I',
+            'SC8' => 'Santa Fe I', 'SH' => 'Santa Fe II', 'SH8' => 'Santa Fe II', 'SW' => 'Santa Fe III', 'SW8' => 'Santa Fe III', 'TC' => 'Veloster',
+            'TC6' => 'Veloster',
+        ]],
+        // Kia since ~MY2010 (Hyundai-style VDS); the older scheme with a two-digit body code is KIA_OLD, see kia().
+        'Kia' => ['at' => [[4, 3], [4, 2]], 'codes' => [
+            'B2' => 'Picanto III', 'B25' => 'Picanto III', 'B3' => 'Picanto III', 'B35' => 'Picanto III', 'BE' => 'Picanto I', 'BE5' => 'Picanto I',
+            'BF' => 'Picanto I', 'BF5' => 'Picanto I', 'BJ' => 'Picanto II', 'BJ5' => 'Picanto II', 'BX' => 'Picanto II', 'BX5' => 'Picanto II',
+            'C3' => 'EV6', 'C38' => 'EV6', 'C4' => 'EV6', 'C48' => 'EV6', 'CB' => 'Niro I', 'CB8' => 'Niro I',
+            'CC' => 'Niro I', 'CC8' => 'Niro I', 'CD' => 'Niro I', 'CD8' => 'Niro I', 'CR' => 'Niro II', 'CR8' => 'Niro II',
+            'D6' => 'Stonic', 'D68' => 'Stonic', 'DA' => 'Stonic', 'DA8' => 'Stonic', 'DB' => 'Rio IV', 'DB5' => 'Rio IV',
+            'DC' => [0 => 'Rio I', 2017 => 'Rio IV'], 'DC5' => 'Rio IV', 'DD' => 'Stonic', 'DD8' => 'Stonic', 'DN' => 'Rio III', 'DN5' => 'Rio III',
+            'E3' => 'Stinger', 'E35' => 'Stinger', 'E5' => 'Stinger', 'E55' => 'Stinger', 'EG' => 'Venga', 'EG8' => 'Venga',
+            'EH' => 'Venga', 'EH8' => 'Venga', 'GM' => 'Optima III', 'GM4' => 'Optima III', 'GN' => 'Optima III', 'GN4' => 'Optima III',
+            'GT' => 'Optima IV', 'GT4' => 'Optima IV', 'GU' => 'Optima IV', 'GU4' => 'Optima IV', 'GU8' => 'Optima IV', 'GV' => 'Optima IV',
+            'GV8' => 'Optima IV', 'H2' => ['Ceed III', 'XCeed', 'ProCeed'], 'H25' => 'Ceed III', 'H28' => 'Ceed III', 'H2F' => 'XCeed', 'H2G' => 'ProCeed',
+            'H5' => ['Ceed III', 'XCeed', 'ProCeed'], 'H55' => 'Ceed III', 'H58' => 'Ceed III', 'H5F' => 'XCeed', 'H5G' => 'ProCeed', 'H6' => ['Ceed III', 'XCeed', 'ProCeed'],
+            'H65' => 'Ceed III', 'H68' => 'Ceed III', 'H6F' => 'XCeed', 'H6G' => 'ProCeed', 'HB' => 'Ceed I', 'HB3' => 'Ceed I',
+            'HB5' => 'Ceed I', 'HB8' => 'Ceed I', 'HC' => 'Ceed I', 'HM' => 'Ceed II', 'HM3' => 'Ceed II', 'HM5' => 'Ceed II',
+            'HM8' => 'Ceed II', 'HN' => 'Ceed II', 'HN3' => 'Ceed II', 'HN5' => 'Ceed II', 'HN8' => 'Ceed II', 'HU' => 'Carens IV',
+            'HU8' => 'Carens IV', 'J2' => 'e-Soul', 'J28' => 'e-Soul', 'J3' => 'e-Soul', 'J38' => 'e-Soul', 'JN' => 'Soul II',
+            'JN8' => 'Soul II', 'JP' => 'Soul II', 'JP8' => 'Soul II', 'JT' => 'Soul I', 'JT8' => 'Soul I', 'JX' => 'Soul II',
+            'JX8' => 'Soul II', 'KU' => 'Sorento II', 'KU8' => 'Sorento II', 'PB' => 'Sportage III', 'PB8' => 'Sportage III', 'PC' => 'Sportage III',
+            'PC8' => 'Sportage III', 'PG' => 'Sorento III', 'PG8' => 'Sorento III', 'PH' => ['Sportage IV', 'Sorento III'], 'PH8' => ['Sportage IV', 'Sorento III'], 'PK' => ['Sportage IV', 'Sorento III'],
+            'PK8' => ['Sportage IV', 'Sorento III'], 'PU' => 'Sportage V', 'PU8' => 'Sportage V', 'PV' => 'Sportage V', 'PV8' => 'Sportage V', 'PX' => 'Sportage V',
+            'PX8' => 'Sportage V', 'RH' => 'Sorento IV', 'RH8' => 'Sorento IV', 'RM' => 'Sorento IV', 'RM8' => 'Sorento IV',
+        ]],
+    ];
+
+    /** Kia before ~MY2010: model code at chars 4–5 followed by a two-digit body code (12, 21–24, 52, 55, 7x). */
+    private const KIA_OLD = [
+        'BA' => 'Picanto I', 'DC' => 'Rio I', 'DE' => 'Rio II', 'DG' => 'Rio II', 'FE' => 'Cerato', 'FF' => 'Ceed I',
+        'FG' => 'Carens III', 'FJ' => 'Carens II', 'GD' => 'Magentis I', 'GE' => 'Magentis II', 'JC' => 'Sorento I', 'JD' => 'Sorento I',
+        'JE' => 'Sportage II', 'JF' => 'Sportage II', 'MA' => 'Carnival I', 'MB' => 'Carnival II', 'MG' => 'Carnival II', 'MH' => 'Carnival II',
     ];
 
     /**
@@ -166,10 +231,12 @@ final class VinDecoder
         $year = $make && in_array($make, self::MODEL_YEAR_MAKES, true) ? self::modelYear($vin[9]) : null;
 
         $models = [];
-        foreach (self::candidates($make, $wmi, $vin, $year) as $name) {
-            if (str_starts_with($name, 'Cupra:')) {
-                $make = 'Cupra';
-                $name = substr($name, 6);
+        $candidates = in_array($wmi, self::MAKE_ONLY_WMIS, true) ? [] : self::candidates($make, $wmi, $vin, $year);
+        foreach ($candidates as $name) {
+            // "Make:Model" — the VIN belongs to another make than its WMI (Cupra on Seat's WMI, Kia Venga from Nošovice).
+            if (preg_match('/^(Cupra|Kia|Hyundai):(.+)$/u', $name, $m)) {
+                $make = $m[1];
+                $name = $m[2];
             }
             $models[] = $name;
         }
@@ -244,8 +311,53 @@ final class VinDecoder
             'Jaguar' => self::jaguar($wmi, $vin[3]),
             'Jeep' => $wmi === '1C4' && substr($vin, 3, 2) === 'RJ' ? 'Grand Cherokee WK2' : null,
             'Opel' => self::opel($vin),
+            'Hyundai' => self::hyundai($wmi, $vin),
+            'Kia' => self::kia($wmi, $vin),
             default => null,
         };
+    }
+
+    /** Hyundai rules on top of the table: shared WMIs and line letters that were reused across eras. */
+    private static function hyundai(string $wmi, string $vin): string|array|null
+    {
+        $line = substr($vin, 3, 2);
+
+        return match (true) {
+            // Kia Venga was built at Hyundai's Nošovice plant under the TMA WMI.
+            $wmi === 'TMA' && in_array($line, ['EG', 'EH'], true) => 'Kia:Venga',
+            // KMF = light commercial vehicles: in practice the H-1 van.
+            $wmi === 'KMF' => [0 => 'H-1 I', 2008 => 'H-1 II'],
+            // "DN" is the i10 III from İzmit (NLH) but the Elantra XD from Korea (KMH).
+            $line === 'DN' && $wmi === 'KMH' => 'Elantra III (XD)',
+            $line === 'DN' && $wmi === 'NLH' => 'i10 III',
+            default => null,
+        };
+    }
+
+    /** Kia: the pre-2010 scheme, Hyundai ix35 from Žilina and the Sportage IV / Sorento III code they share. */
+    private static function kia(string $wmi, string $vin): string|array|null
+    {
+        $line = substr($vin, 3, 2);
+
+        // Before ~MY2010 the model code is followed by a two-digit body code; the new scheme has a body digit and a restraint code there.
+        if (preg_match('/^(12|2[1-4]|5[25]|7\d)$/', substr($vin, 5, 2))) {
+            return self::KIA_OLD[$line] ?? null;
+        }
+        // Kia Slovakia (Žilina) also assembled the Hyundai ix35.
+        if ($wmi === 'U5Y' && in_array($line, ['JU', 'JT'], true)) {
+            return 'Hyundai:ix35';
+        }
+        // PH/PK are shared by the Sportage QL and the Sorento UM: Žilina only builds the Sportage, on KNA the plant (char 11) decides.
+        if (in_array($line, ['PH', 'PK'], true)) {
+            return match (true) {
+                $wmi === 'U5Y' => 'Sportage IV',
+                $wmi === 'KNA' && in_array($vin[10], ['5', 'A'], true) => 'Sorento III',
+                $wmi === 'KNA' && $vin[10] === '7' => 'Sportage IV',
+                default => ['Sportage IV', 'Sorento III'],
+            };
+        }
+
+        return null;
     }
 
     private static function jaguar(string $wmi, string $code): ?string
