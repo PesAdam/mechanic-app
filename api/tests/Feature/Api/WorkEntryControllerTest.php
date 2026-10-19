@@ -89,4 +89,14 @@ class WorkEntryControllerTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('order_operation_id');
     }
+
+    public function test_a_stint_of_a_closed_order_cannot_be_deleted(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $closed = WorkOrder::factory()->unpaid()->create();
+        $entry = WorkEntry::factory()->for($closed)->create();
+
+        $this->deleteJson("/api/v1/work-entries/{$entry->id}")->assertConflict();
+        $this->assertDatabaseHas('work_entries', ['id' => $entry->id]);
+    }
 }

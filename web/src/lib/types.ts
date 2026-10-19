@@ -40,7 +40,11 @@ export interface Operation {
   car_norm_minutes?: number; car_norm_source?: 'engine' | 'model' | 'make' | 'default'; car_norm_id?: number | null; car_avg_seconds?: number | null; car_samples_count?: number
 }
 /** A job picked on an order (name and norm are snapshots). `seconds` = time clocked against it as of the server response. */
-export interface OrderOperation { id: number; operation_id: number | null; name: string; norm_minutes: number; done: boolean; seconds: number }
+export interface OrderOperation {
+  id: number; operation_id: number | null; name: string; norm_minutes: number; done: boolean; seconds: number
+  /** What the customer is billed for this job: its share of the measured time (forgotten time goes to jobs without their own) and the € for it. */
+  billed_seconds: number; amount: number
+}
 
 /** One stint at the car. `ended_at === null` means the stopwatch is running. */
 export interface WorkEntry {
@@ -96,8 +100,11 @@ export interface Order {
 export interface Business {
   name: string; owner: string; street: string; city: string; phone: string; email: string; iban: string; ico: string; vat_payer: boolean
 }
-/** `report_show_rate`: whether the customer report prints the €/h figure (off by default). */
-export interface Settings { hourly_rate: number; labor_billing: LaborBilling; report_show_rate: boolean; business: Business }
+/** How the customer report prints labour: a price per job (default), time with the hourly rate, or only the total. */
+export type ReportLabor = 'price' | 'time' | 'total'
+export interface Settings { hourly_rate: number; labor_billing: LaborBilling; report_labor: ReportLabor; business: Business }
+/** What the public report page receives: the rate only when the owner prints it. */
+export interface ReportSettings { hourly_rate: number | null; labor_billing: LaborBilling; report_labor: ReportLabor; business: Business }
 
 export interface DashboardData {
   period: Period

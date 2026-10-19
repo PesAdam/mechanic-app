@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useSettings, useSettingsActions } from '../data/queries'
 import { ApiError } from '../lib/api'
-import type { Business, LaborBilling } from '../lib/types'
+import type { Business, LaborBilling, ReportLabor } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 
 const EMPTY: Business = { name: '', owner: '', street: '', city: '', phone: '', email: '', iban: '', ico: '', vat_payer: false }
@@ -12,15 +12,15 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const flashSaved = () => { setSaved(true); setTimeout(() => setSaved(false), 2500) }
   if (!settings.data) return <Blueprint style={{ padding: 16 }}><div className="muted" style={{ fontSize: 13 }}>{settings.isPending ? 'Načítavam nastavenia…' : 'Nastavenia sa nepodarilo načítať.'}</div></Blueprint>
-  return <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data.business} initialRate={settings.data.hourly_rate} initialBilling={settings.data.labor_billing} initialShowRate={settings.data.report_show_rate ?? false} saved={saved} onSaved={flashSaved} />
+  return <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data.business} initialRate={settings.data.hourly_rate} initialBilling={settings.data.labor_billing} initialReportLabor={settings.data.report_labor ?? 'price'} saved={saved} onSaved={flashSaved} />
 }
 
-function SettingsForm({ initial, initialRate, initialBilling, initialShowRate, saved, onSaved }: { initial: Business; initialRate: number; initialBilling: LaborBilling; initialShowRate: boolean; saved: boolean; onSaved: () => void }) {
+function SettingsForm({ initial, initialRate, initialBilling, initialReportLabor, saved, onSaved }: { initial: Business; initialRate: number; initialBilling: LaborBilling; initialReportLabor: ReportLabor; saved: boolean; onSaved: () => void }) {
   const { updateSettings } = useSettingsActions()
   const [b, setB] = useState<Business>({ ...EMPTY, ...initial })
   const [rate, setRate] = useState(String(initialRate))
   const [billing, setBilling] = useState<LaborBilling>(initialBilling)
-  const [showRate, setShowRate] = useState(initialShowRate)
+  const [reportLabor, setReportLabor] = useState<ReportLabor>(initialReportLabor)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const set = (k: keyof Business) => (e: { target: { value: string } }) => setB(prev => ({ ...prev, [k]: e.target.value }))
@@ -32,7 +32,7 @@ function SettingsForm({ initial, initialRate, initialBilling, initialShowRate, s
     setBusy(true)
     setError(null)
     try {
-      await updateSettings({ hourly_rate: r, labor_billing: billing, report_show_rate: showRate, business: { ...b, name: b.name.trim() || 'NÁZOV' } })
+      await updateSettings({ hourly_rate: r, labor_billing: billing, report_labor: reportLabor, business: { ...b, name: b.name.trim() || 'NÁZOV' } })
       onSaved()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Nepodarilo sa uložiť.')
@@ -74,11 +74,16 @@ function SettingsForm({ initial, initialRate, initialBilling, initialShowRate, s
             </div>
           </div>
           <div className="muted" style={{ fontSize: 12 }}>Pri normohodinách sa práca účtuje ako súčet noriem úkonov na zákazke × sadzba; zákazka bez úkonov sa účtuje podľa skutočného času. Stopky vždy porovnávajú skutočný čas s normou.</div>
-          <label className="radio" style={{ gap: 10 }}>
-            <input type="checkbox" checked={showRate} onChange={e => setShowRate(e.target.checked)} style={{ position: 'static', opacity: 1, width: 16, height: 16, pointerEvents: 'auto' }} />
-            Zobrazovať hodinovú sadzbu na reporte pre zákazníka
-          </label>
-          <div className="muted" style={{ fontSize: 12 }}>Vypnuté: report ukáže vykonané úkony s časom a sumu za prácu, ale nie „× {rate || '…'} €/h“. V sadzbe sú aj náklady na priestory, náradie a materiál, čo zákazník na prvý pohľad nevidí.</div>
+          <div className="field"><label>Práca na reporte pre zákazníka</label>
+            <div className="seg">
+              <label className="seg-opt"><input type="radio" name="report-labor" checked={reportLabor === 'price'} onChange={() => setReportLabor('price')} />Ceny úkonov</label>
+              <label className="seg-opt"><input type="radio" name="report-labor" checked={reportLabor === 'time'} onChange={() => setReportLabor('time')} />Čas × sadzba</label>
+              <label className="seg-opt"><input type="radio" name="report-labor" checked={reportLabor === 'total'} onChange={() => setReportLabor('total')} />Len spolu</label>
+            </div>
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            <b>Ceny úkonov</b> (odporúčané): každý úkon má na reporte svoju cenu, bez minút a bez sadzby – ako na faktúre zo servisu. <b>Čas × sadzba</b>: časy úkonov a „× {rate || '…'} €/h“. <b>Len spolu</b>: zoznam úkonov a jedna suma za prácu. Hodinová sadzba sa zákazníkovi posiela iba pri voľbe Čas × sadzba; v sadzbe sú aj náklady na priestory, náradie a materiál, čo laik na prvý pohľad nevidí.
+          </div>
         </Blueprint>
 
         <div className="admin-actions">

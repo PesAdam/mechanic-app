@@ -7,6 +7,7 @@ use App\Models\OrderOperation;
 use App\Models\Part;
 use App\Models\Photo;
 use App\Models\WorkEntry;
+use App\Services\LaborSplit;
 use App\Services\OrderTotals;
 use App\Services\Settings;
 use Illuminate\Http\Request;
@@ -18,6 +19,9 @@ class WorkOrderResource extends JsonResource
     public function toArray(Request $request): array
     {
         $now = now();
+        $rate = Settings::rate();
+        $totals = OrderTotals::compute($this->resource, $rate, $now);
+        $split = LaborSplit::seconds($this->resource, $now)['by_op'];
 
         return [
             'id' => $this->id,
@@ -101,8 +105,11 @@ class WorkOrderResource extends JsonResource
                 'done' => $o->done,
                 // Time clocked against this job so far (running stints included, as of this response).
                 'seconds' => (int) $this->workEntries->where('order_operation_id', $o->id)->sum(fn (WorkEntry $e) => $e->seconds($now)),
+                // What the customer is billed for this job: its share of the measured time, or its norm when billing by norms.
+                'billed_seconds' => $split[$o->id] ?? 0,
+                'amount' => round(($totals['labor_billing'] === 'norm' ? $o->norm_minutes * 60 : ($split[$o->id] ?? 0)) / 3600 * $rate, 2),
             ])->values(),
-            'totals' => OrderTotals::compute($this->resource, Settings::rate(), $now),
+            'totals' => $totals,
         ];
     }
 }

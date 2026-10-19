@@ -64,6 +64,8 @@ class WorkEntryController extends Controller
 
     public function destroy(WorkEntry $entry): Response
     {
+        abort_if($entry->workOrder->isClosed(), 409, 'Zákazka je uzavretá.');
+
         $entry->delete();
 
         return response()->noContent();

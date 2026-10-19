@@ -92,14 +92,14 @@ test.describe('desktop majiteľa', () => {
     await expect(labor).not.toContainText('€/h')
 
     await page.goto('/admin/nastavenia')
-    await page.getByText('Zobrazovať hodinovú sadzbu na reporte').click()
+    await page.locator('label.seg-opt', { hasText: 'Čas × sadzba' }).click()
     await page.getByRole('button', { name: 'Uložiť nastavenia' }).click()
     await expect(page.getByText('Uložené ✓')).toBeVisible()
     await page.goto('/admin/reporty/4')
     await expect(page.locator('tr', { hasText: 'Spolu práca' })).toContainText('€/h')
 
     await page.goto('/admin/nastavenia')
-    await page.getByText('Zobrazovať hodinovú sadzbu na reporte').click()
+    await page.locator('label.seg-opt', { hasText: 'Ceny úkonov' }).click()
     await page.getByRole('button', { name: 'Uložiť nastavenia' }).click()
     await expect(page.getByText('Uložené ✓')).toBeVisible()
   })

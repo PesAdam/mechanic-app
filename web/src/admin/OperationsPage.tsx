@@ -6,10 +6,10 @@ import { hm } from '../lib/format'
 import type { Operation } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 import Dialog from '../components/Dialog'
-import { categoryLabel } from '../components/AddOperationDialog'
+import { OPERATION_CATEGORIES, categoryLabel, categoryOrder } from '../lib/categories'
 import VehiclePicker, { EMPTY_VEHICLE, type VehicleValue } from '../components/VehiclePicker'
 
-const CATEGORIES = ['servis', 'brzdy', 'motor', 'podvozok', 'prevodovka', 'elektro', 'klima', 'diagnostika', 'karoseria', 'ine']
+const CATEGORIES = OPERATION_CATEGORIES.map(([k]) => k)
 const VEHICLE_KEY = 'mechanic-app:ukony-vehicle'
 const SOURCE_LABEL = { engine: 'motorizácia', model: 'model', make: 'značka', default: 'všeobecná' } as const
 
@@ -30,6 +30,7 @@ export default function OperationsPage() {
   const { addNorm, removeNorm } = useOperationActions()
   const { importDefaults } = useCarActions()
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState('')
   const [editing, setEditing] = useState<Operation | null>(null)
   const [creating, setCreating] = useState(false)
   const [showInactive, setShowInactive] = useState(false)
@@ -39,7 +40,9 @@ export default function OperationsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const q = query.trim().toLowerCase()
-  const rows = (catalog.data ?? []).filter(o => (showInactive || o.is_active) && (!q || o.name.toLowerCase().includes(q) || categoryLabel(o.category).toLowerCase().includes(q)))
+  const rows = [...(catalog.data ?? [])]
+    .filter(o => (showInactive || o.is_active) && (!category || o.category === category) && (!q || o.name.toLowerCase().includes(q) || categoryLabel(o.category).toLowerCase().includes(q)))
+    .sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category) || a.name.localeCompare(b.name, 'sk'))
   const vehicleLabel = [vehicle.make, vehicle.model, vehicle.engine].filter(Boolean).join(' ')
   const level: 'engine' | 'model' | 'make' = engineId ? 'engine' : modelId ? 'model' : 'make'
 
@@ -59,6 +62,10 @@ export default function OperationsPage() {
       <div className="admin-head">
         <div><div className="kicker">Normohodiny</div><h1>Úkony</h1></div>
         <div className="admin-actions">
+          <select className="input" style={{ width: 190, minHeight: 36 }} value={category} onChange={e => setCategory(e.target.value)} aria-label="Kategória">
+            <option value="">Všetky kategórie</option>
+            {OPERATION_CATEGORIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
           <input className="input" style={{ width: 220, minHeight: 36 }} placeholder="Hľadať úkon…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Hľadať" />
           <label className="radio" style={{ gap: 8, fontSize: 13 }}><input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} style={{ position: 'static', opacity: 1, width: 14, height: 14, pointerEvents: 'auto' }} />aj neaktívne</label>
           <button className="btn btn-secondary" style={{ minHeight: 36 }} disabled={importing === '…'} title="Doplní bežné značky, modely a motorizácie do katalógu vozidiel"
@@ -136,6 +143,7 @@ export default function OperationsPage() {
                 )
               })}
               {!rows.length && <tr><td colSpan={7} className="muted">{catalog.isPending ? 'Načítavam…' : 'Žiadne úkony.'}</td></tr>}
+              {rows.length > 0 && <tr><td colSpan={7} className="muted" style={{ fontSize: 12 }}>{rows.length} {rows.length === 1 ? 'úkon' : rows.length < 5 ? 'úkony' : 'úkonov'}</td></tr>}
             </tbody>
           </table>
         </div>

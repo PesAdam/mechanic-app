@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { Check, FileText, Pause, Play, Plus } from 'lucide-react'
+import { Check, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { entrySeconds, firstName, isClosed, isRunning, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
+import { defaultStartOp, entrySeconds, firstName, isClosed, isRunning, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, hoursSk, km, localToIso, shortVin, skDate, timeOf } from '../lib/format'
 import { publicReportUrl } from '../lib/share'
 import type { CodeStatus, Order, Part, PhotoStage, WorkEntry } from '../lib/types'
@@ -52,7 +52,9 @@ export default function OrderDetail() {
   const t = totalsOf(order, rate, now, settings.data?.labor_billing)
   const closed = isClosed(order)
   const mine = user ? runningEntryOf(order, user.id) : null
+  const startOp = user ? defaultStartOp(order, user.id) : null
   const codes = order.diagnostic?.codes ?? []
+  const samePlan = (iso: string | null) => (iso === null ? order.planned_at === null : order.planned_at !== null && Date.parse(iso) === Date.parse(order.planned_at))
 
   const addPhotos = (blobs: Blob[]) => {
     const stage: PhotoStage = closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred'
@@ -90,14 +92,15 @@ export default function OrderDetail() {
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Čas pri aute</span><span className={`hd num ${normClass(t.seconds, t.norm_seconds)}`}>{hm(t.seconds)}</span></div>
             {t.norm_seconds > 0 && <div style={{ fontSize: 13 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} size={13} /></div>}
             <div>
-              {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} order={order} closed={closed} busy={act.busy} onAssign={opId => void act.run(() => actions.updateEntry(e.id, { order_operation_id: opId }))} />)}
+              {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} order={order} closed={closed} busy={act.busy} onAssign={opId => void act.run(() => actions.updateEntry(e.id, { order_operation_id: opId }))}
+                onRemove={() => { if (window.confirm(`Zmazať zápis ${firstName(e.user.name)} ${timeOf(e.started_at)}${e.ended_at ? `–${timeOf(e.ended_at)}` : ''} (${hm(entrySeconds(e, now))})?`)) void act.run(() => actions.removeEntry(order.id, e.id)) }} />)}
               {!order.work_entries.length && <div className="muted" style={{ fontSize: 13 }}>Zatiaľ bez zapísanej práce.</div>}
             </div>
             {!closed && (
               <div style={{ display: 'flex', gap: 8 }}>
                 {mine
                   ? <button className="btn btn-secondary" onClick={() => void act.run(() => actions.stopTimer(order.id))} disabled={act.busy}><Pause size={16} strokeWidth={1.5} />Pauza</button>
-                  : <button className="btn btn-primary blueprint" onClick={() => void act.run(() => actions.startTimer(order.id))} disabled={act.busy}><Corners /><Play size={16} strokeWidth={1.5} />Štart (ja)</button>}
+                  : <button className="btn btn-primary blueprint" onClick={() => void act.run(() => actions.startTimer(order.id, startOp ? { order_operation_id: startOp.id } : {}))} disabled={act.busy}><Corners /><Play size={16} strokeWidth={1.5} />Štart (ja){startOp ? ` · ${startOp.name}` : ''}</button>}
                 <button className="btn btn-secondary" onClick={() => setManualOpen(true)} disabled={act.busy}><Plus size={16} strokeWidth={1.5} />Ručný zápis</button>
               </div>
             )}
@@ -189,9 +192,9 @@ export default function OrderDetail() {
             <div className="field"><label htmlFor="od-plan-date">Plánované na</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 104px', gap: 6 }}>
                 <input id="od-plan-date" className="input" type="date" key={`pd-${order.planned_at ?? ''}`} defaultValue={order.planned_at ? dateOf(order.planned_at) : ''} disabled={act.busy}
-                  onBlur={e => { const v = e.target.value; const iso = localToIso(v, order.planned_at ? timeOf(order.planned_at) : '08:00'); if (iso !== order.planned_at) void act.run(() => actions.updateOrder(order.id, { planned_at: iso })) }} />
+                  onBlur={e => { const v = e.target.value; const iso = localToIso(v, order.planned_at ? timeOf(order.planned_at) : '08:00'); if (!samePlan(iso)) void act.run(() => actions.updateOrder(order.id, { planned_at: iso })) }} />
                 <input className="input" type="time" aria-label="Čas" step={300} key={`pt-${order.planned_at ?? ''}`} defaultValue={order.planned_at ? timeOf(order.planned_at) : '08:00'} disabled={act.busy || !order.planned_at}
-                  onBlur={e => { if (!order.planned_at) return; const iso = localToIso(dateOf(order.planned_at), e.target.value); if (iso && iso !== order.planned_at) void act.run(() => actions.updateOrder(order.id, { planned_at: iso })) }} />
+                  onBlur={e => { if (!order.planned_at) return; const iso = localToIso(dateOf(order.planned_at), e.target.value); if (iso && !samePlan(iso)) void act.run(() => actions.updateOrder(order.id, { planned_at: iso })) }} />
               </div>
             </div>
             <div className="field"><label htmlFor="od-plan-min">Plánované trvanie (min)</label>
@@ -243,11 +246,12 @@ export default function OrderDetail() {
 }
 
 /** One stint; on an open order the job it counts for can be picked right here. */
-function EntryRow({ entry, now, order, closed, busy, onAssign }: { entry: WorkEntry; now: number; order: Order; closed: boolean; busy: boolean; onAssign: (opId: number | null) => void }) {
+function EntryRow({ entry, now, order, closed, busy, onAssign, onRemove }: { entry: WorkEntry; now: number; order: Order; closed: boolean; busy: boolean; onAssign: (opId: number | null) => void; onRemove: () => void }) {
   const running = !entry.ended_at
   const job = (order.operations ?? []).find(op => op.id === entry.order_operation_id)
+  const flagged = !!entry.note && entry.note.includes('auto-ukončené')
   return (
-    <div className="entry-row">
+    <div className="entry-row" style={flagged ? { background: 'var(--color-bad-100)' } : undefined}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {running && <i className="dot live" />}{firstName(entry.user.name)}{entry.manual ? <span className="tag tag-neutral">ručne</span> : null}
@@ -258,11 +262,14 @@ function EntryRow({ entry, now, order, closed, busy, onAssign }: { entry: WorkEn
               {(order.operations ?? []).map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
             </select>}
         </div>
-        <div className="muted" style={{ fontSize: 12 }}>
+        <div className={flagged ? 'norm-bad' : 'muted'} style={{ fontSize: 12 }}>
           {skDate(dateOf(entry.started_at))} {timeOf(entry.started_at)}{entry.ended_at ? ` – ${timeOf(entry.ended_at)}` : ' – beží'}{entry.note ? ` · ${entry.note}` : ''}
         </div>
       </div>
-      <div className="hd num" style={{ whiteSpace: 'nowrap' }}>{running ? hms(entrySeconds(entry, now)) : hm(entry.seconds)}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="hd num" style={{ whiteSpace: 'nowrap' }}>{running ? hms(entrySeconds(entry, now)) : hm(entry.seconds)}</div>
+        {!closed && <button type="button" className="btn btn-ghost btn-icon" style={{ width: 28, height: 28 }} aria-label="Zmazať zápis" title="Zmazať zápis času" disabled={busy} onClick={onRemove}><Trash2 size={13} strokeWidth={1.5} /></button>}
+      </div>
     </div>
   )
 }

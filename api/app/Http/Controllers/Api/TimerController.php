@@ -15,7 +15,9 @@ class TimerController extends Controller
 {
     /**
      * Štart: opens a stint for the signed-in mechanic, optionally against one job of the order.
-     * One mechanic is at one car at a time; asking for a different job than the running stint's switches to it.
+     * One mechanic is at one car at a time. A request that names a job (or explicitly none) switches a running
+     * stint to it; a bare request only starts the stopwatch when nothing is running, so a stale screen never
+     * demotes a job stint to "bez úkonu".
      */
     public function start(Request $request, WorkOrder $order): WorkOrderResource
     {
@@ -28,19 +30,20 @@ class TimerController extends Controller
 
         $user = $request->user();
         $now = now();
+        $switch = array_key_exists('order_operation_id', $data);
         $operationId = isset($data['order_operation_id']) ? (int) $data['order_operation_id'] : null;
 
-        DB::transaction(function () use ($order, $user, $now, $data, $operationId): void {
+        DB::transaction(function () use ($order, $user, $now, $data, $switch, $operationId): void {
             WorkEntry::query()
                 ->where('user_id', $user->id)
                 ->whereNull('ended_at')
                 ->where('work_order_id', '!=', $order->id)
                 ->update(['ended_at' => $now]);
 
-            $running = $order->workEntries()->where('user_id', $user->id)->whereNull('ended_at')->first();
+            $running = $order->workEntries()->where('user_id', $user->id)->whereNull('ended_at')->lockForUpdate()->first();
 
-            // Switching jobs closes the current stint; the same job (or none again) just keeps running.
-            if ($running && $running->order_operation_id !== $operationId) {
+            // Switching jobs closes the current stint; the same job (or a bare start) just keeps running.
+            if ($running && $switch && $running->order_operation_id !== $operationId) {
                 $running->update(['ended_at' => $now]);
                 $running = null;
             }

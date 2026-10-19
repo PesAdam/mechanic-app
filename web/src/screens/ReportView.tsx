@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { FileText } from 'lucide-react'
-import { entrySeconds, firstName, opSeconds, partPrice, totalsOf, unassignedEntries, carName } from '../lib/calc'
+import { entrySeconds, partPrice, unassignedEntries, carName } from '../lib/calc'
 import { addDays, dateOf, eur, hhmm, hm, hoursSk, km, shortVin, skDate } from '../lib/format'
-import type { CodeStatus, Order, Settings } from '../lib/types'
+import type { CodeStatus, Order, ReportSettings } from '../lib/types'
 import Blueprint from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
 import PayBySquare from '../components/PayBySquare'
@@ -10,16 +10,20 @@ import PayBySquare from '../components/PayBySquare'
 const CODE_TAG: Record<CodeStatus, [string, string]> = { fixed: ['Odstránené', 'tag-accent'], watch: ['Sledovať', 'tag-neutral'], open: ['Otvorené', 'tag-outline'] }
 const DUE_DAYS = 14
 
-interface Props { order: Order; settings: Settings; now: number; tools?: ReactNode }
+interface Props { order: Order; settings: ReportSettings; now: number; tools?: ReactNode }
 
-/** 1e · Report pre zákazníka — photos, diagnostics, labor, parts, invoice + PAY by square. */
+/**
+ * 1e · Report pre zákazníka — photos, diagnostics, labor, parts, invoice + PAY by square.
+ * Amounts come from the server (order.totals, operations[].amount), so the page never needs the hourly rate;
+ * the €/h figure scares laypeople and is printed only in the "Čas × sadzba" mode.
+ */
 export default function ReportView({ order, settings, now, tools }: Props) {
   const b = settings.business
+  const mode = settings.report_labor ?? 'price'
   const rate = settings.hourly_rate
-  // The €/h figure scares laypeople: it stays off the report unless the owner switches it on.
-  const showRate = settings.report_show_rate ?? false
-  const t = totalsOf(order, rate, now, settings.labor_billing)
+  const t = order.totals
   const byNorm = t.labor_billing === 'norm'
+  const rows = laborRows(order, byNorm, now)
   const day = dateOf(order.closed_at ?? order.received_at ?? new Date(now).toISOString())
   const year = day.slice(0, 4)
   const docNo = `${year}-${order.number}`
@@ -38,7 +42,7 @@ export default function ReportView({ order, settings, now, tools }: Props) {
           <div>
             <div className="hd" style={{ fontSize: 40, lineHeight: 0.9 }}>{b.name}</div>
             <div className="muted" style={{ marginTop: 8, lineHeight: 1.4 }}>
-              {[b.owner, [b.street, b.city].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}<br />{[b.phone, b.email].filter(Boolean).join(' · ')}
+              {[b.owner, [b.street, b.city].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}<br />{[b.phone, b.email, b.ico ? `IČO ${b.ico}` : ''].filter(Boolean).join(' · ')}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -100,15 +104,14 @@ export default function ReportView({ order, settings, now, tools }: Props) {
             <h3><span>03</span>Vykonaná práca</h3>
             <table className="table" style={{ fontSize: 13 }}>
               <tbody>
-                {byNorm
-                  ? order.operations.map(op => (
-                    <tr key={op.id}><td>{op.name}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{hm(op.norm_minutes * 60)}</td></tr>
-                  ))
-                  : laborRows(order, now).map(r => (
-                    <tr key={r.key}><td>{r.label}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{hm(r.seconds)}</td></tr>
-                  ))}
-                {!byNorm && !order.work_entries.length && <tr><td className="muted" colSpan={2}>Bez zapísanej práce.</td></tr>}
-                <tr><td><b>Spolu práca</b>{showRate ? <> · {byNorm ? `${hoursSk(t.norm_seconds / 3600)} × ` : ''}{rate} €/h</> : null}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><b>{eur(t.labor)}</b></td></tr>
+                {rows.map(r => (
+                  <tr key={r.key}>
+                    <td>{r.label}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{mode === 'price' ? (r.amount !== null ? eur(r.amount) : '') : mode === 'time' ? hm(r.seconds) : ''}</td>
+                  </tr>
+                ))}
+                {!rows.length && <tr><td className="muted" colSpan={2}>Bez zapísanej práce.</td></tr>}
+                <tr><td><b>Spolu práca</b>{mode === 'time' && rate !== null ? <> · {byNorm ? `${hoursSk(t.norm_seconds / 3600)} × ` : ''}{rate} €/h</> : null}</td><td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><b>{eur(t.labor)}</b></td></tr>
               </tbody>
             </table>
           </section>
@@ -145,13 +148,22 @@ export default function ReportView({ order, settings, now, tools }: Props) {
   )
 }
 
-/** Work rows for the customer: the jobs with the time clocked against them, then stints filed under no job. */
-function laborRows(order: Order, now: number): { key: string; label: string; seconds: number }[] {
-  const rows = (order.operations ?? []).map(op => ({ key: `op-${op.id}`, label: op.name, seconds: opSeconds(order, op.id, now) })).filter(r => r.seconds > 0)
-  for (const e of unassignedEntries(order)) {
-    rows.push({ key: `e-${e.id}`, label: `${e.note || `Práca · ${firstName(e.user.name)}`}${!e.ended_at ? ' (prebieha)' : ''}`, seconds: entrySeconds(e, now) })
+/**
+ * Work rows for the customer: every job that was done or has time on it, with the server's share of the measured
+ * time and its price. Without jobs the stints stand in (by their note, never by the mechanic's name).
+ */
+function laborRows(order: Order, byNorm: boolean, now: number): { key: string; label: string; seconds: number; amount: number | null }[] {
+  const ops = order.operations ?? []
+  if (ops.length) {
+    return ops
+      .filter(op => byNorm || op.done || op.billed_seconds > 0)
+      .map(op => ({ key: `op-${op.id}`, label: op.name, seconds: byNorm ? op.norm_minutes * 60 : op.billed_seconds, amount: op.amount }))
   }
-  return rows
+  const stints = unassignedEntries(order)
+  if (!stints.length) return []
+  // One line for the whole labour; the notes say what was done.
+  const notes = [...new Set(stints.map(e => e.note).filter((n): n is string => !!n))]
+  return [{ key: 'labor', label: notes.length ? notes.join(', ') : 'Servisné práce', seconds: stints.reduce((a, e) => a + entrySeconds(e, now), 0), amount: order.totals.labor }]
 }
 
 /** "09:40 – 15:05": first record of the day to the last one (or now while running). */

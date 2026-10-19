@@ -47,7 +47,7 @@ describe('work entries', () => {
 describe('totalsOf', () => {
   const o = order({
     work_entries: [entry({ id: 1, seconds: 3600 }), entry({ id: 2, ended_at: null, seconds: 0, started_at: '2026-10-12T09:50:00.000Z' })],
-    operations: [{ id: 1, operation_id: 1, name: 'Brzdy vpredu', norm_minutes: 60, done: false, seconds: 0 }],
+    operations: [{ id: 1, operation_id: 1, name: 'Brzdy vpredu', norm_minutes: 60, done: false, seconds: 0, billed_seconds: 0, amount: 0 }],
     parts: [part({ id: 1, price: 100, purchase_price: 80 }), part({ id: 2, price: 50, purchase_price: null }), part({ id: 3, price: 999, used: false })],
   })
 
@@ -100,7 +100,7 @@ describe('helpers', () => {
 
   it('sums the time clocked against one job, running stints included', () => {
     const o = order({
-      operations: [{ id: 5, operation_id: 1, name: 'Brzdy', norm_minutes: 60, done: false, seconds: 0 }],
+      operations: [{ id: 5, operation_id: 1, name: 'Brzdy', norm_minutes: 60, done: false, seconds: 0, billed_seconds: 0, amount: 0 }],
       work_entries: [entry({ id: 1, order_operation_id: 5 }), entry({ id: 2, order_operation_id: 5, ended_at: null, seconds: 0, started_at: '2026-10-12T09:50:00.000Z' }), entry({ id: 3 })],
     })
     expect(opSeconds(o, 5, NOW)).toBe(4200)
@@ -109,8 +109,8 @@ describe('helpers', () => {
 
   it('plans by the explicit duration, else the norms, else an hour', () => {
     expect(plannedMinutes(order({}))).toBe(60)
-    expect(plannedMinutes(order({ operations: [{ id: 1, operation_id: null, name: 'X', norm_minutes: 45, done: false, seconds: 0 }, { id: 2, operation_id: null, name: 'Y', norm_minutes: 30, done: false, seconds: 0 }] }))).toBe(75)
-    expect(plannedMinutes(order({ planned_minutes: 120, operations: [{ id: 1, operation_id: null, name: 'X', norm_minutes: 45, done: false, seconds: 0 }] }))).toBe(120)
+    expect(plannedMinutes(order({ operations: [{ id: 1, operation_id: null, name: 'X', norm_minutes: 45, done: false, seconds: 0, billed_seconds: 0, amount: 0 }, { id: 2, operation_id: null, name: 'Y', norm_minutes: 30, done: false, seconds: 0, billed_seconds: 0, amount: 0 }] }))).toBe(75)
+    expect(plannedMinutes(order({ planned_minutes: 120, operations: [{ id: 1, operation_id: null, name: 'X', norm_minutes: 45, done: false, seconds: 0, billed_seconds: 0, amount: 0 }] }))).toBe(120)
   })
 
   it('sorts planned orders first, earliest plan first, the rest by arrival', () => {

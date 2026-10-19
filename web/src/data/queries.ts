@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '../lib/api'
-import type { CarMake, CodeStatus, VehicleLookup, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, Role, Settings, User } from '../lib/types'
+import type { CarMake, CodeStatus, VehicleLookup, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, ReportSettings, Role, Settings, User } from '../lib/types'
 
 export const keys = {
   orders: ['orders'] as const,
@@ -79,9 +79,11 @@ export function usePublicReport(token: string) {
   return useQuery({
     queryKey: keys.report(token),
     enabled: token.length > 0,
-    queryFn: () => api<{ order: Order; settings: Settings }>(`/public/reports/${encodeURIComponent(token)}`),
+    queryFn: () => api<{ order: Order; settings: ReportSettings }>(`/public/reports/${encodeURIComponent(token)}`),
   })
 }
+
+export interface OrderPatch { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; planned_at?: string | null; planned_minutes?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null } }
 
 /** Every write returns the fresh order, which replaces it in both caches. */
 export function useOrderActions() {
@@ -105,6 +107,11 @@ export function useOrderActions() {
     /** Priradenie k úkonu after the fact (running or finished stint). */
     updateEntry: (entryId: number, patch: { order_operation_id?: number | null; note?: string | null }) =>
       call(`/work-entries/${entryId}`, { method: 'PATCH', json: patch }),
+    /** Deletes a stint (a forgotten stopwatch the owner corrects); the order is refetched. */
+    removeEntry: async (orderId: number, entryId: number) => {
+      await api(`/work-entries/${entryId}`, { method: 'DELETE' })
+      await Promise.all([qc.invalidateQueries({ queryKey: keys.order(orderId) }), qc.invalidateQueries({ queryKey: keys.orders })])
+    },
     addPart: (id: number, part: { name: string; meta: string; price: number; purchase_price: number | null }) => call(`/orders/${id}/parts`, { method: 'POST', json: part }),
     updatePart: (partId: number, patch: { used?: boolean; name?: string; meta?: string; price?: number; purchase_price?: number | null }) =>
       call(`/parts/${partId}`, { method: 'PATCH', json: patch }),
@@ -132,7 +139,7 @@ export function useOrderActions() {
     addOperation: (id: number, body: { operation_id: number } | { name: string; norm_minutes: number }) => call(`/orders/${id}/operations`, { method: 'POST', json: body }),
     updateOrderOperation: (opId: number, patch: { done?: boolean; name?: string; norm_minutes?: number }) => call(`/order-operations/${opId}`, { method: 'PATCH', json: patch }),
     removeOrderOperation: (opId: number) => call(`/order-operations/${opId}`, { method: 'DELETE' }),
-    updateOrder: (id: number, patch: { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; planned_at?: string | null; planned_minutes?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null } }) =>
+    updateOrder: (id: number, patch: OrderPatch) =>
       call(`/orders/${id}`, { method: 'PATCH', json: patch }),
     createOrder: async (payload: NewOrderPayload) => {
       const o = await api<{ data: Order }>('/orders', { method: 'POST', json: payload }).then(unwrap)
@@ -146,7 +153,7 @@ export function useOrderActions() {
 export function useSettingsActions() {
   const qc = useQueryClient()
   return {
-    updateSettings: async (patch: Partial<Pick<Settings, 'hourly_rate' | 'labor_billing' | 'report_show_rate'>> & { business?: Partial<Settings['business']> }) => {
+    updateSettings: async (patch: Partial<Pick<Settings, 'hourly_rate' | 'labor_billing' | 'report_labor'>> & { business?: Partial<Settings['business']> }) => {
       const s = await api<Settings>('/settings', { method: 'PATCH', json: patch })
       qc.setQueryData(keys.settings, s)
       void qc.invalidateQueries({ queryKey: ['dashboard'] })

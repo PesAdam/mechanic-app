@@ -68,24 +68,28 @@ test('stopky sa spúšťajú a prepínajú na konkrétny úkon', async ({ page }
   await page.goto('/m/zakazky/1') // #0231 from the seeder: four jobs, open
 
   await page.getByRole('button', { name: 'Štart · Výmena snímača EGR' }).click()
-  await expect(page.getByText('Robím:')).toContainText('Výmena snímača EGR')
+  await expect(page.getByText('Robím ·')).toContainText('Výmena snímača EGR')
   await expect(page.getByRole('button', { name: 'Pauza · Výmena snímača EGR' })).toBeVisible()
 
   // Another job's ▶ switches: the first stint closes, the new one runs.
   await page.getByRole('button', { name: 'Štart · Skúšobná jazda' }).click()
-  await expect(page.getByText('Robím:')).toContainText('Skúšobná jazda')
+  await expect(page.getByText('Robím ·')).toContainText('Skúšobná jazda')
   await expect(page.getByRole('button', { name: 'Štart · Výmena snímača EGR' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Pauza', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Štart', exact: true })).toBeVisible()
+  // The big button offers to continue the job that was just paused.
+  const resume = page.getByRole('button', { name: 'Pokračovať · Skúšobná jazda' })
+  await expect(resume).toBeVisible()
+  await resume.click()
+  await expect(page.getByText('Robím ·')).toContainText('Skúšobná jazda')
 
-  // Forgot to pick a job: the plain Štart runs without one and the job is assigned afterwards.
-  await page.getByRole('button', { name: 'Štart', exact: true }).click()
+  // Forgot which job: switch to plain order time, then Pauza asks "Čo si robil?" and files the stint in one go.
+  await page.getByRole('button', { name: 'zmeniť úkon' }).click()
+  await page.getByRole('dialog', { name: 'Priradiť čas k úkonu' }).getByRole('button', { name: 'Bez úkonu' }).click()
   await expect(page.getByText('Čas bez úkonu')).toBeVisible()
-  await page.getByRole('button', { name: 'priradiť k úkonu' }).click()
-  await page.getByRole('dialog', { name: 'Priradiť čas k úkonu' }).getByRole('button', { name: 'Diagnostika riadiacich jednotiek' }).click()
-  await expect(page.getByText('Robím:')).toContainText('Diagnostika riadiacich jednotiek')
   await page.getByRole('button', { name: 'Pauza', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Čo si robil?' }).getByRole('button', { name: 'Diagnostika riadiacich jednotiek' }).click()
+  await expect(page.getByRole('button', { name: 'Pokračovať · Diagnostika riadiacich jednotiek' })).toBeVisible()
 
   const token = await apiToken(page)
   const res = await page.request.get('/api/v1/orders/1', { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } })

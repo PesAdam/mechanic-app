@@ -67,14 +67,17 @@ export function ManualTimeDialog({ open, onClose, orderId, operations = [] }: Ba
   )
 }
 
-/** "Priradiť k úkonu": files a stint (running or finished) under one of the order's jobs after the fact. */
-export function AssignEntryDialog({ open, onClose, order, entry }: { open: boolean; onClose: () => void; order: Order; entry: WorkEntry | null }) {
+/**
+ * "Priradiť k úkonu": files a stint (running or finished) under one of the order's jobs after the fact.
+ * With `onPick` the same sheet asks "Čo si robil?" and lets the caller stop and file in one request.
+ */
+export function AssignEntryDialog({ open, onClose, order, entry, title = 'Priradiť čas k úkonu', onPick }: { open: boolean; onClose: () => void; order: Order; entry: WorkEntry | null; title?: string; onPick?: (opId: number | null) => Promise<unknown> }) {
   const { updateEntry } = useOrderActions()
   const { busy, error, wrap } = useSubmit()
   if (!entry) return null
-  const pick = (opId: number | null) => void wrap(() => updateEntry(entry.id, { order_operation_id: opId }), onClose)
+  const pick = (opId: number | null) => void wrap(() => (onPick ? onPick(opId) : updateEntry(entry.id, { order_operation_id: opId })), onClose)
   return (
-    <Dialog open={open} title="Priradiť čas k úkonu" onClose={onClose}
+    <Dialog open={open} title={title} onClose={onClose}
       actions={<button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Zavrieť</button>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div className="muted" style={{ fontSize: 12 }}>{firstName(entry.user.name)} · {timeOf(entry.started_at)}{entry.ended_at ? ` – ${timeOf(entry.ended_at)}` : ' – beží'}{entry.note ? ` · ${entry.note}` : ''}</div>

@@ -5,8 +5,8 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { firstName, isClosed, isRunning, normClass, opOf, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
-import { eur, hm, hms, km, timeOf } from '../lib/format'
+import { defaultStartOp, firstName, isClosed, isOverdue, isRunning, normClass, opOf, opSeconds, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
+import { dateOf, eur, hm, hms, km, planLabel, timeOf } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
 import type { Part, PhotoStage } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
@@ -22,6 +22,7 @@ import AddPhotoTile from '../components/AddPhotoTile'
 import ShareReport from '../components/ShareReport'
 import NormBadge from '../components/NormBadge'
 import OperationsSection from '../components/OperationsSection'
+import PlanDialog from '../components/PlanDialog'
 import { AddCodeDialog, AddPartDialog, AssignEntryDialog, ManualTimeDialog } from '../components/JobDialogs'
 
 const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
@@ -43,6 +44,8 @@ export default function JobDetail() {
   const [closeOpen, setCloseOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
+  const [stopOpen, setStopOpen] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
   const diagInput = useRef<HTMLInputElement>(null)
 
   if (!order) return q.isPending ? <Loading text="Načítavam zákazku…" /> : <NotFound />
@@ -58,6 +61,10 @@ export default function JobDetail() {
   const session = closed ? t.seconds : sessionSeconds(order, whoId, now)
   const codes = order.diagnostic?.codes ?? []
   const brand = settings.data?.business.name ?? 'Dielňa'
+  // The big button clocks the obvious job: the only open one, or the one this mechanic paused.
+  const startOp = user ? defaultStartOp(order, user.id) : null
+  const runningOp = mine ? opOf(order, mine.order_operation_id) : null
+  const openOps = order.operations.filter(op => !op.done)
 
   const nextStage = (): PhotoStage => (closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred')
   const addPhotos = (blobs: Blob[]) => {
@@ -67,7 +74,12 @@ export default function JobDetail() {
       for (const [i, blob] of blobs.entries()) await actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n + i}`, stage })
     })
   }
-  const toggleTimer = () => void act.run(() => (mine ? actions.stopTimer(order.id) : actions.startTimer(order.id)))
+  const toggleTimer = () => {
+    if (!mine) return void act.run(() => actions.startTimer(order.id, startOp ? { order_operation_id: startOp.id } : {}))
+    // Pausing a stint that has no job while the order has open jobs: ask what it was, stop and file in one go.
+    if (mine.order_operation_id === null && openOps.length) return setStopOpen(true)
+    void act.run(() => actions.stopTimer(order.id))
+  }
 
   return (
     <div className="phone">
@@ -86,21 +98,38 @@ export default function JobDetail() {
           <div className="kicker">Zákazka #{order.number} · {order.customer.name}</div>
           <h2 style={{ fontSize: 28, margin: '2px 0 0' }}>{carName(order.car)}</h2>
           <div className="muted" style={{ fontSize: 13 }}>{order.car.plate} · {km(order.car.km)} · {lowerFirst(order.summary)}</div>
+          {!closed && (
+            <div style={{ fontSize: 12, marginTop: 4 }}>
+              {order.planned_at
+                ? <span className={isOverdue(order, now) ? 'norm-bad' : undefined}>{isOverdue(order, now) ? 'mešká · plán ' : 'Plán: '}{planLabel(order.planned_at, now)}</span>
+                : <span className="muted">Bez plánu</span>}
+              {' · '}<button type="button" className="linkbtn" style={{ fontSize: 12 }} onClick={() => setPlanOpen(true)}>{order.planned_at ? 'zmeniť' : 'naplánovať'}</button>
+            </div>
+          )}
         </div>
 
         <Blueprint style={{ padding: '22px 16px 18px', textAlign: 'center' }}>
-          <div className="kicker-muted" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <i className={run ? 'dot live' : 'dot'} />{closed ? 'Uzavreté · celkom' : `Dnes · ${who}`}
-          </div>
-          <div className={`hd num ${normClass(t.seconds, t.norm_seconds)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(session)}</div>
-          <div className="muted" style={{ fontSize: 12 }}>Celkom na aute {hm(t.seconds)} · {eur(t.labor)}</div>
-          {t.norm_seconds > 0 && <div style={{ fontSize: 12, marginTop: 4 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} /></div>}
-          {mine && !closed && (
-            <div style={{ fontSize: 13, marginTop: 8 }}>
-              {opOf(order, mine.order_operation_id)
-                ? <>Robím: <b>{opOf(order, mine.order_operation_id)?.name}</b> · <button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>zmeniť</button></>
-                : <>Čas bez úkonu{order.operations.length ? <> · <button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>priradiť k úkonu</button></> : null}</>}
-            </div>
+          {runningOp ? (
+            <>
+              {/* Clocked against a job: the dial is that job's time, read against its norm from across the bay. */}
+              <div className="kicker" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><i className="dot live" />Robím · {runningOp.name}</div>
+              <div className={`hd num ${normClass(opSeconds(order, runningOp.id, now), runningOp.norm_minutes * 60)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(opSeconds(order, runningOp.id, now))}</div>
+              <div style={{ fontSize: 12 }}>Norma {hm(runningOp.norm_minutes * 60)} · <NormBadge seconds={opSeconds(order, runningOp.id, now)} normSeconds={runningOp.norm_minutes * 60} rate={rate} /></div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Dnes na aute {hm(session)} · celkom {hm(t.seconds)} · {eur(t.labor)}</div>
+              <div style={{ fontSize: 13, marginTop: 8 }}><button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>zmeniť úkon</button></div>
+            </>
+          ) : (
+            <>
+              <div className="kicker-muted" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <i className={run ? 'dot live' : 'dot'} />{closed ? 'Uzavreté · celkom' : `Dnes · ${who}`}
+              </div>
+              <div className={`hd num ${normClass(t.seconds, t.norm_seconds)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(session)}</div>
+              <div className="muted" style={{ fontSize: 12 }}>Celkom na aute {hm(t.seconds)} · {eur(t.labor)}</div>
+              {t.norm_seconds > 0 && <div style={{ fontSize: 12, marginTop: 4 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} /></div>}
+              {mine && !closed && (
+                <div style={{ fontSize: 13, marginTop: 8 }}>Čas bez úkonu{order.operations.length ? <> · <button type="button" className="linkbtn" onClick={() => setAssignOpen(true)}>priradiť k úkonu</button></> : null}</div>
+              )}
+            </>
           )}
           {!closed && (
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -109,8 +138,8 @@ export default function JobDetail() {
                   <Pause size={16} strokeWidth={1.5} />Pauza
                 </button>
               ) : (
-                <button className="btn btn-primary blueprint" style={{ flex: 1, minHeight: 44 }} onClick={toggleTimer} disabled={act.busy}>
-                  <Corners /><Play size={16} strokeWidth={1.5} />Štart
+                <button className="btn btn-primary blueprint" style={{ flex: 1, minHeight: 44 }} onClick={toggleTimer} disabled={act.busy} title={startOp ? `Spustí stopky na úkon ${startOp.name}` : 'Spustí stopky na zákazku'}>
+                  <Corners /><Play size={16} strokeWidth={1.5} />{startOp ? `${order.work_entries.some(e => e.user.id === user?.id && e.order_operation_id === startOp.id) ? 'Pokračovať' : 'Štart'} · ${startOp.name}` : 'Štart'}
                 </button>
               )}
               <button className="btn btn-secondary" style={{ minHeight: 44, paddingInline: 14 }} onClick={() => setManualOpen(true)} disabled={act.busy}>
@@ -199,6 +228,9 @@ export default function JobDetail() {
 
       <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} operations={order.operations} />
       <AssignEntryDialog open={assignOpen} onClose={() => setAssignOpen(false)} order={order} entry={mine} />
+      <AssignEntryDialog open={stopOpen} onClose={() => setStopOpen(false)} order={order} entry={mine} title="Čo si robil?" onPick={opId => actions.stopTimer(order.id, opId === null ? {} : { order_operation_id: opId })} />
+      {planOpen && <PlanDialog compact draft={{ order, date: order.planned_at ? dateOf(order.planned_at) : dateOf(new Date(now).toISOString()), time: order.planned_at ? timeOf(order.planned_at) : '08:00' }} busy={act.busy} onClose={() => setPlanOpen(false)}
+        onSave={(o, patch) => void act.run(() => actions.updateOrder(o.id, patch)).then(() => setPlanOpen(false))} />}
       <AddPartDialog open={partOpen} onClose={() => setPartOpen(false)} orderId={order.id} />
       <AddPartDialog open={!!editPart} onClose={() => setEditPart(null)} orderId={order.id} part={editPart ?? undefined} />
       {closeOpen && <CloseOrderDialog order={order} rate={rate} now={now} billing={settings.data?.labor_billing} open onClose={() => setCloseOpen(false)} />}

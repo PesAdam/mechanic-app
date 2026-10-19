@@ -58,13 +58,35 @@ final class Settings
         app()->forgetInstance(self::BILLING_BINDING);
     }
 
-    /** The customer report hides the hourly rate unless the owner switches it on. */
-    public static function reportShowRate(): bool
+    /** How the customer report prints labour: a price per job (default), time with the hourly rate, or just the total. */
+    public const REPORT_LABOR_MODES = ['price', 'time', 'total'];
+
+    public static function reportLabor(): string
     {
-        return (bool) (int) Setting::get('report_show_rate', 0);
+        $mode = (string) Setting::get('report_labor', 'price');
+
+        return in_array($mode, self::REPORT_LABOR_MODES, true) ? $mode : 'price';
     }
 
-    /** @return array{hourly_rate: float, labor_billing: string, report_show_rate: bool, business: array<string, mixed>} */
+    /**
+     * What the unauthenticated report page gets: the business block and the report flags; the hourly rate only
+     * when the owner chose to print it.
+     *
+     * @return array{hourly_rate: float|null, labor_billing: string, report_labor: string, business: array<string, mixed>}
+     */
+    public static function publicPayload(): array
+    {
+        $all = self::payload();
+
+        return [
+            'hourly_rate' => $all['report_labor'] === 'time' ? $all['hourly_rate'] : null,
+            'labor_billing' => $all['labor_billing'],
+            'report_labor' => $all['report_labor'],
+            'business' => $all['business'],
+        ];
+    }
+
+    /** @return array{hourly_rate: float, labor_billing: string, report_labor: string, business: array<string, mixed>} */
     public static function payload(): array
     {
         $values = Setting::query()
@@ -77,6 +99,6 @@ final class Settings
         }
         $business['vat_payer'] = (bool) (int) $business['vat_payer'];
 
-        return ['hourly_rate' => self::rate(), 'labor_billing' => self::laborBilling(), 'report_show_rate' => self::reportShowRate(), 'business' => $business];
+        return ['hourly_rate' => self::rate(), 'labor_billing' => self::laborBilling(), 'report_labor' => self::reportLabor(), 'business' => $business];
     }
 }

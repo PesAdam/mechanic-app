@@ -23,7 +23,7 @@ class SettingController extends Controller
         $data = $request->validate([
             'hourly_rate' => ['sometimes', 'numeric', 'min:1', 'max:500'],
             'labor_billing' => ['sometimes', Rule::in(Settings::BILLING_MODES)],
-            'report_show_rate' => ['sometimes', 'boolean'],
+            'report_labor' => ['sometimes', Rule::in(Settings::REPORT_LABOR_MODES)],
             'business' => ['sometimes', 'array'],
             'business.name' => ['sometimes', 'string', 'max:120'],
             'business.owner' => ['sometimes', 'nullable', 'string', 'max:120'],
@@ -42,8 +42,8 @@ class SettingController extends Controller
         if (array_key_exists('labor_billing', $data)) {
             Setting::set('labor_billing', $data['labor_billing']);
         }
-        if (array_key_exists('report_show_rate', $data)) {
-            Setting::set('report_show_rate', (int) $data['report_show_rate']);
+        if (array_key_exists('report_labor', $data)) {
+            Setting::set('report_labor', $data['report_labor']);
         }
         Settings::forget();
 

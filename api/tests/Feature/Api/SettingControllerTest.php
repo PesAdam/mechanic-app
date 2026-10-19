@@ -39,12 +39,13 @@ class SettingControllerTest extends TestCase
         $this->assertDatabaseHas('settings', ['key' => 'business.name', 'value' => 'AutoBelo']);
     }
 
-    public function test_report_rate_visibility_is_off_by_default_and_can_be_switched_on(): void
+    public function test_report_prints_prices_per_job_by_default_and_the_owner_can_switch_to_time_and_rate(): void
     {
         Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
 
-        $this->getJson('/api/v1/settings')->assertOk()->assertJsonPath('report_show_rate', false);
-        $this->patchJson('/api/v1/settings', ['report_show_rate' => true])->assertOk()->assertJsonPath('report_show_rate', true);
-        $this->getJson('/api/v1/settings')->assertOk()->assertJsonPath('report_show_rate', true);
+        $this->getJson('/api/v1/settings')->assertOk()->assertJsonPath('report_labor', 'price');
+        $this->patchJson('/api/v1/settings', ['report_labor' => 'time'])->assertOk()->assertJsonPath('report_labor', 'time');
+        $this->getJson('/api/v1/settings')->assertOk()->assertJsonPath('report_labor', 'time');
+        $this->patchJson('/api/v1/settings', ['report_labor' => 'hours'])->assertUnprocessable();
     }
 }

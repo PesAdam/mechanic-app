@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useOrders, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
-import { byPlan, firstName, isClosed, isRunning, normClass, runningEntry, totalsOf, carName } from '../lib/calc'
+import { byPlan, firstName, isClosed, isOverdue, isRunning, normClass, runningEntry, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, planLabel, skDateShort } from '../lib/format'
 import { plural } from '../lib/text'
 import type { Order } from '../lib/types'
@@ -70,7 +70,7 @@ export default function Orders() {
                   <tr key={o.id} className="clickable" onClick={() => nav(`/admin/zakazky/${o.id}`)}>
                     <td>{o.number}</td>
                     <td className="nowrap">{o.received_at ? skDateShort(dateOf(o.received_at)) : '—'}</td>
-                    <td className="nowrap">{o.planned_at ? <span className={isClosed(o) ? 'muted' : ''}>{planLabel(o.planned_at, now)}</span> : <span className="muted">—</span>}</td>
+                    <td className="nowrap">{o.planned_at ? <span className={isOverdue(o, now) ? 'norm-bad' : isClosed(o) ? 'muted' : ''}>{isOverdue(o, now) ? 'mešká · ' : ''}{planLabel(o.planned_at, now)}</span> : <span className="muted">—</span>}</td>
                     <td><b>{carName(o.car)}</b> · {o.customer.name}<div className="muted" style={{ fontSize: 11 }}>{o.summary}</div></td>
                     <td className="nowrap">{o.car.plate}</td>
                     <td className="nowrap">{run ? <span style={{ color: 'var(--color-accent-700)' }}>● {firstName(run.user.name)}</span> : o.mechanic ? firstName(o.mechanic.name) : '—'}</td>

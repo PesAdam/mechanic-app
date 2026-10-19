@@ -13,6 +13,7 @@ use App\Services\CarCatalog;
 use App\Services\OperationSamples;
 use App\Services\OrderTotals;
 use App\Services\Settings;
+use App\Services\StaleStints;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,8 @@ class WorkOrderController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        StaleStints::sweep();
+
         $query = WorkOrder::query()->withEverything()->orderByDesc('received_at')->orderByDesc('id');
 
         if ($status = $request->string('status')->toString()) {

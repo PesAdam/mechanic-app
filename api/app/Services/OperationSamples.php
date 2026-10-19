@@ -3,13 +3,11 @@
 namespace App\Services;
 
 use App\Models\OperationSample;
-use App\Models\WorkEntry;
 use App\Models\WorkOrder;
 
 /**
- * When an order closes, its measured time is attributed to the catalogue jobs and
- * stored as samples for "your average": stints clocked against a job count for that
- * job, and time clocked without a job is split across the jobs in proportion to their norms.
+ * When an order closes, its measured time is attributed to the catalogue jobs (see LaborSplit)
+ * and stored as samples for "your average".
  */
 final class OperationSamples
 {
@@ -19,21 +17,10 @@ final class OperationSamples
 
         OperationSample::query()->where('work_order_id', $order->id)->delete();
 
-        $catalogued = $order->operations->whereNotNull('operation_id');
-        $normSum = (int) $order->operations->sum('norm_minutes');
+        $split = LaborSplit::seconds($order)['by_op'];
 
-        if ($catalogued->isEmpty() || $normSum <= 0) {
-            return;
-        }
-
-        $assigned = $order->workEntries
-            ->whereNotNull('order_operation_id')
-            ->groupBy('order_operation_id')
-            ->map(fn ($entries) => (int) $entries->sum(fn (WorkEntry $e) => $e->seconds()));
-        $unassigned = (int) $order->workEntries->whereNull('order_operation_id')->sum(fn (WorkEntry $e) => $e->seconds());
-
-        foreach ($catalogued as $op) {
-            $actual = (int) round(($assigned[$op->id] ?? 0) + $unassigned * $op->norm_minutes / $normSum);
+        foreach ($order->operations->whereNotNull('operation_id') as $op) {
+            $actual = $split[$op->id] ?? 0;
             if ($actual <= 0) {
                 continue;
             }

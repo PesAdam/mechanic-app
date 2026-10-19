@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { useOrders, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
-import { byPlan, entrySeconds, firstName, isClosed, isRunning, runningEntry, totalsOf, carName } from '../lib/calc'
+import { byPlan, entrySeconds, firstName, isClosed, isDueToday, isOverdue, isRunning, runningEntry, totalsOf, carName } from '../lib/calc'
 import NormBadge from '../components/NormBadge'
 import { dateOf, eur, hm, hms, isoDate, planLabel, skDateShort, timeOf, weekday } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
@@ -33,8 +33,8 @@ export default function WorkshopToday() {
   const nav = useNavigate()
 
   const today = isoDate(new Date(now))
-  // Running first, then what is planned for today in time order, then the rest of the open work, then waiting cars.
-  const rank = (o: Order) => (isRunning(o) ? 0 : o.planned_at && dateOf(o.planned_at) === today ? 1 : o.status === 'open' ? 2 : 3)
+  // Running first, then what is due today (incl. plans that slipped) in time order, then the rest of the open work, then waiting cars.
+  const rank = (o: Order) => (isRunning(o) ? 0 : isDueToday(o, now) ? 1 : o.status === 'open' ? 2 : 3)
   const active = list.filter(o => !isClosed(o)).sort((a, b) => rank(a) - rank(b) || byPlan(a, b))
   const finished = list.filter(isClosed)
   const todaySec = list.reduce((a, o) => a + o.work_entries.filter(e => dateOf(e.started_at) === today).reduce((x, e) => x + entrySeconds(e, now), 0), 0)
@@ -103,7 +103,7 @@ function JobCard({ order, now, rate, billing }: { order: Order; now: number; rat
     <Link to={`/m/zakazky/${order.id}`} className="card blueprint job-card" style={{ padding: 14, gap: 10, opacity: waiting ? 0.75 : 1 }}>
       <Corners />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <span className="card-kicker" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{order.lift ?? (waiting ? 'Čaká' : 'Dielňa')} · #{order.number}{order.planned_at && <span className="tag tag-outline" style={{ fontSize: 10, padding: '1px 6px', letterSpacing: 0, textTransform: 'none' }}>plán {planLabel(order.planned_at, now)}</span>}</span>
+        <span className="card-kicker" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{order.lift ?? (waiting ? 'Čaká' : 'Dielňa')} · #{order.number}{order.planned_at && <span className={`tag ${isOverdue(order, now) ? 'tag-neutral norm-bad' : 'tag-outline'}`} style={{ fontSize: 10, padding: '1px 6px', letterSpacing: 0, textTransform: 'none' }}>{isOverdue(order, now) ? 'mešká · plán ' : 'plán '}{planLabel(order.planned_at, now)}</span>}</span>
         {run
           ? <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-accent-700)' }}><i className="dot live" />{firstName(run.user.name)} · <span className="num">{hms(entrySeconds(run, now))}</span></span>
           : waiting

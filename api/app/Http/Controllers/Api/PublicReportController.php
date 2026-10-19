@@ -17,7 +17,7 @@ class PublicReportController extends Controller
 
         return response()->json([
             'order' => new WorkOrderResource($order),
-            'settings' => Settings::payload(),
+            'settings' => Settings::publicPayload(),
         ]);
     }
 }

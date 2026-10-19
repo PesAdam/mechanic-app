@@ -15,7 +15,8 @@ class Operation extends Model
     /** @use HasFactory<OperationFactory> */
     use HasFactory;
 
-    public const CATEGORIES = ['servis', 'brzdy', 'motor', 'podvozok', 'prevodovka', 'elektro', 'klima', 'diagnostika', 'karoseria', 'ine'];
+    /** In the order the app lists them. */
+    public const CATEGORIES = ['servis', 'diagnostika', 'pneu', 'brzdy', 'podvozok', 'riadenie', 'motor', 'chladenie', 'palivo', 'vyfuk', 'prevodovka', 'elektro', 'osvetlenie', 'klima', 'karoseria', 'ine'];
 
     protected function casts(): array
     {

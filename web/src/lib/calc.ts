@@ -35,11 +35,38 @@ export const opOf = (o: Order, opId: number | null): OrderOperation | null => (o
 
 /** How long the order is planned to take: the explicit plan, else the norm sum, else an hour. */
 export const plannedMinutes = (o: Order): number => o.planned_minutes ?? (normSeconds(o) > 0 ? Math.round(normSeconds(o) / 60) : 60)
-/** Planned orders first (earliest plan first), the rest by arrival. */
+/** Planned orders first (earliest plan first, so a slipped plan tops the list), the rest by arrival. */
 export const byPlan = (a: Order, b: Order): number => {
   if (a.planned_at && b.planned_at) return Date.parse(a.planned_at) - Date.parse(b.planned_at)
   if (a.planned_at !== b.planned_at) return a.planned_at ? -1 : 1
-  return Date.parse(a.received_at ?? '') - Date.parse(b.received_at ?? '')
+  return (Date.parse(a.received_at ?? '') || 0) - (Date.parse(b.received_at ?? '') || 0)
+}
+
+/** An open order whose planned day has passed without being closed: "mešká". */
+export const isOverdue = (o: Order, now: number): boolean => {
+  if (!o.planned_at || isClosed(o)) return false
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  return Date.parse(o.planned_at) < today.getTime()
+}
+/** Planned for today (or slipped from an earlier day) and still open. */
+export const isDueToday = (o: Order, now: number): boolean => {
+  if (!o.planned_at || isClosed(o)) return false
+  const end = new Date(now)
+  end.setHours(23, 59, 59, 999)
+  return Date.parse(o.planned_at) <= end.getTime()
+}
+
+/**
+ * The job the big Štart should clock: the only open job, else the job of this mechanic's latest stint
+ * on the order when it is still open (a pause continued), else nothing (plain order time).
+ */
+export const defaultStartOp = (o: Order, userId: number): OrderOperation | null => {
+  const open = (o.operations ?? []).filter(op => !op.done)
+  if (open.length === 1) return open[0]
+  // The most recently logged stint (by id: a manual entry typed in later counts as the latest action, whatever its clock time).
+  const last = [...o.work_entries].filter(e => e.user.id === userId).sort((a, b) => b.id - a.id)[0]
+  return (last && open.find(op => op.id === last.order_operation_id)) ?? null
 }
 
 /** 'norm-ok' while the measured time is within the norm, 'norm-bad' once over it, '' without a norm. */

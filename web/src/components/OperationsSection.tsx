@@ -59,9 +59,9 @@ export default function OperationsSection({ order, closed, title = true, now, ra
                     onClick={() => void act.run(() => actions.stopTimer(order.id))}><Pause size={16} strokeWidth={1.5} /></button>
                 : <button type="button" className="btn btn-ghost btn-icon" aria-label={`Štart · ${op.name}`} title={mine ? 'Prepnúť stopky na tento úkon' : 'Spustiť stopky na tento úkon'} disabled={act.busy}
                     onClick={() => void act.run(() => actions.startTimer(order.id, { order_operation_id: op.id }))}><Play size={16} strokeWidth={1.5} /></button>)}
-              {!closed && (
-                <button type="button" className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} aria-label="Odstrániť úkon" disabled={act.busy}
-                  onClick={() => void act.run(() => actions.removeOrderOperation(op.id))}><X size={14} strokeWidth={1.5} /></button>
+              {!closed && seconds === 0 && !live && (
+                <button type="button" className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} aria-label="Odstrániť úkon" title="Odstrániť úkon zo zákazky" disabled={act.busy}
+                  onClick={() => { if (window.confirm(`Odstrániť úkon „${op.name}“ zo zákazky?`)) void act.run(() => actions.removeOrderOperation(op.id)) }}><X size={14} strokeWidth={1.5} /></button>
               )}
             </div>
           )

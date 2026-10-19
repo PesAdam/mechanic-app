@@ -141,4 +141,37 @@ class TimerControllerTest extends TestCase
             ->assertJsonPath('data.work_entries.0.ended_at', '2026-10-19T08:30:00.000000Z')
             ->assertJsonPath('data.operations.0.seconds', 1800);
     }
+
+    public function test_a_bare_start_does_not_demote_a_running_job_stint(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $job = $order->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => $job->id])->assertOk();
+
+        // A stale screen's big Štart: nothing changes.
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start")->assertOk()->assertJsonPath('data.work_entries.0.order_operation_id', $job->id);
+        $this->assertDatabaseCount('work_entries', 1);
+
+        // An explicit "bez úkonu" does switch.
+        $this->postJson("/api/v1/orders/{$order->id}/timer/start", ['order_operation_id' => null])->assertOk()->assertJsonPath('data.work_entries.1.order_operation_id', null);
+        $this->assertDatabaseCount('work_entries', 2);
+    }
+
+    public function test_a_forgotten_stopwatch_is_closed_at_the_cap_and_flagged(): void
+    {
+        $this->travelTo('2026-10-20 08:00:00');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->open()->create();
+        $forgotten = WorkEntry::factory()->for($order)->for($user)->running()->create(['started_at' => '2026-10-19 17:02:00']);
+        $fresh = WorkEntry::factory()->for($order)->for($user)->running()->create(['started_at' => '2026-10-20 07:30:00']);
+
+        $this->getJson('/api/v1/orders')->assertOk();
+
+        $this->assertSame('2026-10-20 03:02:00', $forgotten->fresh()->ended_at->toDateTimeString());
+        $this->assertStringContainsString('auto-ukončené', $forgotten->fresh()->note);
+        $this->assertNull($fresh->fresh()->ended_at);
+    }
 }

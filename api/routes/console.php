@@ -3,13 +3,14 @@
 use App\Models\Operation;
 use App\Models\User;
 use App\Services\CarCatalog;
+use Database\Seeders\OperationSeeder;
 use Database\Seeders\ProductionSeeder;
 use Illuminate\Support\Facades\Artisan;
 
 /*
  * app:install – idempotent setup run on every deploy / container start:
- * migrations, catalogue seed on an empty database (or just new catalogue entries
- * after an update) and the uploads symlink. Caches are warmed by the entrypoint.
+ * migrations, catalogue seed on an empty database (or just the new catalogue jobs and
+ * vehicles after an update) and the uploads symlink. Caches are warmed by the entrypoint.
  */
 Artisan::command('app:install', function () {
     $this->call('migrate', ['--force' => true]);
@@ -17,6 +18,7 @@ Artisan::command('app:install', function () {
     if (Operation::query()->count() === 0) {
         $this->call('db:seed', ['--class' => ProductionSeeder::class, '--force' => true]);
     } else {
+        $this->call('db:seed', ['--class' => OperationSeeder::class, '--force' => true]);
         $this->info('Katalóg vozidiel: '.CarCatalog::importDefaults().' značiek.');
     }
 
