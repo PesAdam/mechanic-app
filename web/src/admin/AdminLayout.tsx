@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router'
-import { CalendarDays, FileText, LayoutGrid, ListChecks, LogOut, Settings, Smartphone, Users, Wrench } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, LayoutGrid, ListChecks, LogOut, Settings, Smartphone, Users, Wrench } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useOrders, useSettings, useUsers } from '../data/queries'
 import { firstName } from '../lib/calc'
@@ -22,6 +22,7 @@ export default function AdminLayout() {
           <NavLink to="/admin/zakazky"><Wrench size={16} strokeWidth={1.5} />Zákazky</NavLink>
           <NavLink to="/admin/kalendar"><CalendarDays size={16} strokeWidth={1.5} />Kalendár</NavLink>
           <NavLink to="/admin/reporty"><FileText size={16} strokeWidth={1.5} />Reporty</NavLink>
+          <NavLink to="/admin/statistika"><BarChart3 size={16} strokeWidth={1.5} />Štatistika</NavLink>
           <NavLink to="/admin/ukony"><ListChecks size={16} strokeWidth={1.5} />Úkony</NavLink>
           <NavLink to="/admin/tim"><Users size={16} strokeWidth={1.5} />Tím</NavLink>
           <NavLink to="/admin/nastavenia"><Settings size={16} strokeWidth={1.5} />Nastavenia</NavLink>

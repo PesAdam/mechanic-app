@@ -9,6 +9,7 @@ import JobDiary from './mobile/JobDiary'
 import Account from './mobile/Account'
 import AdminLayout from './admin/AdminLayout'
 import Dashboard from './admin/Dashboard'
+import StatsPage from './admin/StatsPage'
 import Orders from './admin/Orders'
 import OrderDetail from './admin/OrderDetail'
 import Reports from './admin/Reports'
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="kalendar" element={<CalendarPage />} />
           <Route path="reporty" element={<Reports />} />
           <Route path="reporty/:id" element={<ReportPage />} />
+          <Route path="statistika" element={<StatsPage />} />
           <Route path="tim" element={<TeamPage />} />
           <Route path="ukony" element={<OperationsPage />} />
           <Route path="nastavenia" element={<SettingsPage />} />

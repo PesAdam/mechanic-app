@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\WorkOrderResource;
 use App\Models\WorkEntry;
 use App\Models\WorkOrder;
+use App\Services\OperationSamples;
+use App\Services\OrderTotals;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
@@ -22,8 +24,6 @@ class WorkEntryController extends Controller
             'user_id' => ['nullable', 'exists:users,id'],
             'order_operation_id' => ['nullable', Rule::exists('order_operations', 'id')->where('work_order_id', $order->id)],
         ]);
-
-        abort_if($order->isClosed(), 409, 'Zákazka je uzavretá.');
 
         $userId = $data['user_id'] ?? $request->user()->id;
         $end = now();
@@ -41,11 +41,13 @@ class WorkEntryController extends Controller
             'status' => in_array($order->status, [OrderStatus::New, OrderStatus::Waiting], true) ? OrderStatus::Open : $order->status,
             'mechanic_id' => $order->mechanic_id ?? $userId,
         ]);
+        OperationSamples::refresh($order);
+        OrderTotals::rebase($order);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($order->id));
     }
 
-    /** Priradenie k úkonu (or a note) after the fact, on a running or finished stint of an open order. */
+    /** Priradenie k úkonu (or a note) after the fact, on a running or finished stint, also after the order was closed. */
     public function update(Request $request, WorkEntry $entry): WorkOrderResource
     {
         $order = $entry->workOrder;
@@ -55,18 +57,20 @@ class WorkEntryController extends Controller
             'note' => ['sometimes', 'nullable', 'string', 'max:500'],
         ]);
 
-        abort_if($order->isClosed(), 409, 'Zákazka je uzavretá.');
-
         $entry->update($data);
+        OperationSamples::refresh($order);
+        OrderTotals::rebase($order);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($order->id));
     }
 
     public function destroy(WorkEntry $entry): Response
     {
-        abort_if($entry->workOrder->isClosed(), 409, 'Zákazka je uzavretá.');
+        $order = $entry->workOrder;
 
         $entry->delete();
+        OperationSamples::refresh($order);
+        OrderTotals::rebase($order);
 
         return response()->noContent();
     }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\PartController;
 use App\Http\Controllers\Api\PhotoController;
 use App\Http\Controllers\Api\PublicReportController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\TimerController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleLookupController;
@@ -82,5 +83,6 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('settings', [SettingController::class, 'update']);
 
         Route::get('dashboard', [DashboardController::class, 'show']);
+        Route::get('stats', [StatsController::class, 'show']);
     });
 });

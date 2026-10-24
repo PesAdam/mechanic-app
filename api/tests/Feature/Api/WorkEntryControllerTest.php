@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Operation;
 use App\Models\User;
 use App\Models\WorkEntry;
 use App\Models\WorkOrder;
@@ -75,12 +76,12 @@ class WorkEntryControllerTest extends TestCase
             ->assertJsonPath('data.work_entries.0.order_operation_id', null);
     }
 
-    public function test_reassigning_is_refused_on_a_closed_order_and_for_a_foreign_job(): void
+    public function test_a_paid_order_takes_notes_but_not_a_job_of_another_order(): void
     {
         Sanctum::actingAs(User::factory()->create());
-        $closed = WorkOrder::factory()->unpaid()->create();
+        $closed = WorkOrder::factory()->paid()->create();
         $entry = WorkEntry::factory()->for($closed)->create();
-        $this->patchJson("/api/v1/work-entries/{$entry->id}", ['note' => 'x'])->assertConflict();
+        $this->patchJson("/api/v1/work-entries/{$entry->id}", ['note' => 'x'])->assertOk();
 
         $open = WorkOrder::factory()->open()->create();
         $mine = WorkEntry::factory()->for($open)->create();
@@ -90,13 +91,32 @@ class WorkEntryControllerTest extends TestCase
             ->assertJsonValidationErrors('order_operation_id');
     }
 
-    public function test_a_stint_of_a_closed_order_cannot_be_deleted(): void
+    public function test_a_stint_of_a_paid_order_can_be_deleted(): void
     {
         Sanctum::actingAs(User::factory()->create());
-        $closed = WorkOrder::factory()->unpaid()->create();
+        $closed = WorkOrder::factory()->paid()->create();
         $entry = WorkEntry::factory()->for($closed)->create();
 
-        $this->deleteJson("/api/v1/work-entries/{$entry->id}")->assertConflict();
-        $this->assertDatabaseHas('work_entries', ['id' => $entry->id]);
+        $this->deleteJson("/api/v1/work-entries/{$entry->id}")->assertNoContent();
+        $this->assertDatabaseMissing('work_entries', ['id' => $entry->id]);
+    }
+
+    public function test_time_of_an_order_waiting_for_payment_can_be_corrected_and_feeds_the_averages(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $order = WorkOrder::factory()->unpaid()->create();
+        $catalog = Operation::factory()->create(['norm_minutes' => 60]);
+        $job = $order->operations()->create(['operation_id' => $catalog->id, 'name' => $catalog->name, 'norm_minutes' => 60, 'sort' => 0]);
+
+        $this->postJson("/api/v1/orders/{$order->id}/work-entries", ['minutes' => 45, 'order_operation_id' => $job->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'unpaid')
+            ->assertJsonPath('data.totals.seconds', 2700);
+        $this->assertDatabaseHas('operation_samples', ['work_order_id' => $order->id, 'operation_id' => $catalog->id, 'actual_seconds' => 2700]);
+
+        $entry = $order->workEntries()->firstOrFail();
+        $this->deleteJson("/api/v1/work-entries/{$entry->id}")->assertNoContent();
+        $this->assertDatabaseMissing('operation_samples', ['work_order_id' => $order->id]);
     }
 }

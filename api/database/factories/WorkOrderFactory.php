@@ -37,4 +37,9 @@ class WorkOrderFactory extends Factory
     {
         return $this->state(fn () => ['status' => OrderStatus::Unpaid, 'closed_at' => now()]);
     }
+
+    public function paid(): static
+    {
+        return $this->state(fn () => ['status' => OrderStatus::Done, 'closed_at' => now()]);
+    }
 }

@@ -75,4 +75,21 @@ class PartControllerTest extends TestCase
             ->assertJsonPath('data.totals.parts', 0);
         $this->assertDatabaseHas('parts', ['id' => $part->id, 'used' => false]);
     }
+
+    public function test_parts_of_a_paid_order_can_be_corrected_and_the_zlava_follows(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $paid = WorkOrder::factory()->paid()->create(['total_override' => 90, 'total_original' => 100]);
+        $part = Part::factory()->for($paid)->create(['price' => 100]);
+
+        $this->patchJson("/api/v1/parts/{$part->id}", ['price' => 120])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'done')
+            ->assertJsonPath('data.totals.grand', 90)
+            ->assertJsonPath('data.total_original', 120);
+        $this->postJson("/api/v1/orders/{$paid->id}/parts", ['name' => 'Brzdová kvapalina', 'price' => 10])
+            ->assertOk()
+            ->assertJsonPath('data.total_original', 130);
+        $this->deleteJson("/api/v1/parts/{$part->id}")->assertOk()->assertJsonPath('data.total_original', 10);
+    }
 }

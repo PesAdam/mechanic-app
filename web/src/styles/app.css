@@ -135,6 +135,9 @@ select.input { appearance: none; }
 .bar-pair { display: flex; gap: 3px; align-items: end; height: 100%; }
 .bar-labor { flex: 1; background: var(--color-accent); }
 .bar-parts { flex: 1; border: 1px solid var(--color-accent-700); }
+.bar-pick { border: 0; padding: 0; background: none; cursor: pointer; }
+.bar-pick:hover { opacity: 1 !important; }
+.bar-pick:focus-visible { outline: 2px solid var(--color-accent-700); outline-offset: 2px; }
 .bars-x { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; font-size: 11px; color: var(--color-neutral-700); text-align: center; }
 .meter { height: 6px; background: var(--color-neutral-200); margin-top: 4px; }
 .meter > div { height: 100%; background: var(--color-accent); }

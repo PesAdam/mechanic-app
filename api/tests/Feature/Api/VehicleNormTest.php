@@ -393,4 +393,48 @@ class VehicleNormTest extends TestCase
 
         return [$model, CarEngine::query()->create(['car_model_id' => $model->id, 'name' => '2.2 MZR-CD'])];
     }
+
+    public function test_fixing_the_engine_on_an_open_order_moves_its_jobs_to_the_new_engine_norms(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $make = CarMake::query()->create(['name' => 'Peugeot']);
+        $model = CarModel::query()->create(['car_make_id' => $make->id, 'name' => '406']);
+        $petrol = CarEngine::query()->create(['car_model_id' => $model->id, 'name' => '1.6']);
+        $diesel = CarEngine::query()->create(['car_model_id' => $model->id, 'name' => '2.0 HDi']);
+        $oil = Operation::factory()->create(['norm_minutes' => 60]);
+        OperationNorm::query()->create(['operation_id' => $oil->id, 'car_make_id' => $make->id, 'car_model_id' => $model->id, 'car_engine_id' => $diesel->id, 'norm_minutes' => 75]);
+        $order = WorkOrder::factory()->open()->create();
+        $order->car->update(['make' => 'Peugeot', 'model' => '406', 'engine' => '1.6', 'car_model_id' => $model->id, 'car_engine_id' => $petrol->id]);
+        $job = $order->operations()->create(['operation_id' => $oil->id, 'name' => $oil->name, 'norm_minutes' => 60]);
+        $custom = $order->operations()->create(['name' => 'Kontrola bŕzd', 'norm_minutes' => 20]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['car' => ['make' => 'Peugeot', 'model' => '406', 'engine' => '2.0 HDi']])
+            ->assertOk()
+            ->assertJsonPath('data.car.engine', '2.0 HDi')
+            ->assertJsonPath('data.car.car_engine_id', $diesel->id);
+
+        $this->assertSame(75, $job->fresh()->norm_minutes);
+        $this->assertSame(20, $custom->fresh()->norm_minutes);
+    }
+
+    public function test_fixing_the_model_files_the_car_under_the_right_model_and_keeps_closed_order_norms(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $make = CarMake::query()->create(['name' => 'Peugeot']);
+        $wrong = CarModel::query()->create(['car_make_id' => $make->id, 'name' => '407']);
+        $oil = Operation::factory()->create(['norm_minutes' => 60]);
+        $order = WorkOrder::factory()->unpaid()->create();
+        $order->car->update(['make' => 'Peugeot', 'model' => '407', 'engine' => null, 'car_model_id' => $wrong->id, 'car_engine_id' => null]);
+        $job = $order->operations()->create(['operation_id' => $oil->id, 'name' => $oil->name, 'norm_minutes' => 45]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['car' => ['make' => 'Peugeot', 'model' => '406', 'engine' => '1.6 HDi']])
+            ->assertOk()
+            ->assertJsonPath('data.car.model', '406')
+            ->assertJsonPath('data.car.engine', '1.6 HDi');
+
+        $right = CarModel::query()->where('name', '406')->firstOrFail();
+        $this->assertDatabaseHas('cars', ['id' => $order->car_id, 'car_model_id' => $right->id]);
+        $this->assertDatabaseHas('car_engines', ['car_model_id' => $right->id, 'name' => '1.6 HDi']);
+        $this->assertSame(45, $job->fresh()->norm_minutes);
+    }
 }

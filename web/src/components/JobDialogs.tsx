@@ -6,7 +6,8 @@ import { useAuth } from '../auth/AuthContext'
 import { ApiError } from '../lib/api'
 import { firstName } from '../lib/calc'
 import { timeOf } from '../lib/format'
-import type { CodeStatus, Order, OrderOperation, Part, WorkEntry } from '../lib/types'
+import type { Car, CodeStatus, Order, OrderOperation, Part, WorkEntry } from '../lib/types'
+import VehiclePicker, { type VehicleValue } from './VehiclePicker'
 
 interface Base { open: boolean; onClose: () => void; orderId: number }
 
@@ -45,7 +46,7 @@ export function ManualTimeDialog({ open, onClose, orderId, operations = [] }: Ba
       actions={<><button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Zrušiť</button><button type="submit" form="manual-time" className="btn btn-primary" disabled={busy}>Zapísať</button></>}>
       <form id="manual-time" onSubmit={submit}>
         <div className="row">
-          <div className="field"><label htmlFor="mt-min">Minúty</label><input id="mt-min" className="input" inputMode="numeric" value={minutes} onChange={e => setMinutes(e.target.value)} min={1} max={1440} step={5} type="number" required autoFocus /></div>
+          <div className="field"><label htmlFor="mt-min">Minúty</label><input id="mt-min" className="input" inputMode="numeric" value={minutes} onChange={e => setMinutes(e.target.value)} min={1} max={1440} step={1} type="number" required autoFocus /></div>
           <div className="field"><label htmlFor="mt-mech">Mechanik</label>
             <select id="mt-mech" className="input" value={mechanicId} onChange={e => setMech(Number(e.target.value))}>
               {(users.data?.filter(u => u.is_active) ?? (user ? [user] : [])).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -138,7 +139,7 @@ export function AddPartDialog({ open, onClose, orderId, part }: Base & { part?: 
           <div className="field"><label htmlFor="ap-price">MOC – predajná cena (€)</label><input id="ap-price" className="input" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} placeholder="89,90" required /></div>
           <div className="field"><label htmlFor="ap-purchase">NC – nákupná cena (€)</label><input id="ap-purchase" className="input" inputMode="decimal" value={purchase} onChange={e => setPurchase(e.target.value)} placeholder="voliteľné" /></div>
         </div>
-        <div className="muted" style={{ fontSize: 11 }}>Na doklad pre zákazníka ide vždy MOC. NC slúži na výpočet marže v Prehľade.</div>
+        <div className="muted" style={{ fontSize: 11 }}>Na report ide MOC alebo NC podľa prepínača pri dieloch; z rozdielu sa počíta marža.</div>
         {error && <div className="form-error" role="alert">{error}</div>}
       </form>
     </Dialog>
@@ -173,6 +174,39 @@ export function AddCodeDialog({ open, onClose, orderId }: Base) {
             <option value="open">Otvorené</option><option value="fixed">Odstránené</option><option value="watch">Sledovať</option>
           </select>
         </div>
+        {error && <div className="form-error" role="alert">{error}</div>}
+      </form>
+    </Dialog>
+  )
+}
+
+/** Fixes a mistyped vehicle (značka → model → motorizácia, ŠPZ, VIN). Mount it when opening: it starts from the car as saved. */
+export function EditCarDialog({ open, onClose, orderId, car }: Base & { car: Car }) {
+  const { updateOrder } = useOrderActions()
+  const { busy, error, wrap } = useSubmit()
+  const [vehicle, setVehicle] = useState<VehicleValue>({ make: car.make, model: car.model, engine: car.engine ?? '', makeId: car.car_make_id, modelId: car.car_model_id, engineId: car.car_engine_id })
+  const [plate, setPlate] = useState(car.plate)
+  const [vin, setVin] = useState(car.vin ?? '')
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!vehicle.make || !vehicle.model || !plate.trim()) return
+    void wrap(() => updateOrder(orderId, { car: { make: vehicle.make, model: vehicle.model, engine: vehicle.engine || null, plate: plate.trim(), vin: vin.trim() || null } }), onClose)
+  }
+
+  return (
+    <Dialog open={open} title="Upraviť vozidlo" onClose={onClose}
+      actions={<><button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Zrušiť</button><button type="submit" form="edit-car" className="btn btn-primary" disabled={busy || !vehicle.make || !vehicle.model}>Uložiť</button></>}>
+      <form id="edit-car" onSubmit={submit}>
+        <div className="field"><label>Vozidlo</label>
+          <VehiclePicker value={vehicle} onChange={setVehicle} />
+          <span className="muted" style={{ fontSize: 11 }}>Kliknite na model alebo motorizáciu, ktorú chcete zmeniť.</span>
+        </div>
+        <div className="row">
+          <div className="field"><label htmlFor="ec-plate">ŠPZ</label><input id="ec-plate" className="input" value={plate} onChange={e => setPlate(e.target.value)} required /></div>
+          <div className="field"><label htmlFor="ec-vin">VIN</label><input id="ec-vin" className="input" value={vin} onChange={e => setVin(e.target.value)} placeholder="voliteľné" maxLength={17} autoCapitalize="characters" /></div>
+        </div>
+        <div className="muted" style={{ fontSize: 11 }}>Oprava platí pre auto vo všetkých jeho zákazkách. Na otvorenej zákazke sa normy úkonov z katalógu prepočítajú podľa opraveného auta.</div>
         {error && <div className="form-error" role="alert">{error}</div>}
       </form>
     </Dialog>

@@ -130,6 +130,34 @@ class WorkOrderControllerTest extends TestCase
             ->assertJsonPath('data.totals.grand', 100);
     }
 
+    public function test_total_edited_on_an_open_order_is_compared_with_the_final_sum_at_closing(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Setting::set('hourly_rate', 28);
+        $order = WorkOrder::factory()->open()->create();
+        Part::factory()->for($order)->create(['price' => 100]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['total_override' => 90])->assertOk()->assertJsonPath('data.total_original', 100);
+        Part::factory()->for($order)->create(['price' => 20]);
+
+        $this->postJson("/api/v1/orders/{$order->id}/close")
+            ->assertOk()
+            ->assertJsonPath('data.totals.grand', 90)
+            ->assertJsonPath('data.total_original', 120);
+    }
+
+    public function test_marking_paid_measures_the_edited_total_against_the_corrected_sum(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->unpaid()->create(['total_override' => 90, 'total_original' => 100]);
+        Part::factory()->for($order)->create(['price' => 120]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['status' => 'done'])
+            ->assertOk()
+            ->assertJsonPath('data.totals.grand', 90)
+            ->assertJsonPath('data.total_original', 120);
+    }
+
     public function test_total_override_rejects_a_negative_amount(): void
     {
         Sanctum::actingAs(User::factory()->create());
@@ -183,6 +211,29 @@ class WorkOrderControllerTest extends TestCase
         $this->patchJson("/api/v1/orders/{$order->id}", ['km' => -5, 'customer' => ['email' => 'nie-je-email']])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['km', 'customer.email']);
+    }
+
+    public function test_update_fixes_plate_and_vin_of_the_car(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create();
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['car' => ['plate' => 'pb 066 dk', 'vin' => 'vf38bwjyf80188442']])
+            ->assertOk()
+            ->assertJsonPath('data.car.plate', 'PB 066 DK')
+            ->assertJsonPath('data.car.vin', 'VF38BWJYF80188442');
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['car' => ['vin' => null]])->assertOk()->assertJsonPath('data.car.vin', null);
+    }
+
+    public function test_update_needs_make_and_model_together(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->create();
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['car' => ['model' => '406']])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['car.make']);
     }
 
     public function test_order_can_be_planned_and_the_plan_round_trips_as_utc(): void

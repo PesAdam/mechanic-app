@@ -47,7 +47,12 @@ export default function CloseOrderDialog({ order, rate, now, billing, open, onCl
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14 }}>
           <div className="r-line"><span>Práca · {t.labor_billing === 'norm' ? `norma ${hm(t.norm_seconds)}` : hm(t.seconds)} × {rate} €/h</span><span>{eur(t.labor)}</span></div>
           <div className="r-line"><span>Diely · {pricing === 'nc' ? 'NC' : 'MOC'}</span><span>{eur(parts)}</span></div>
-          <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 6 }}><span className="hd">K úhrade</span><span className="hd" style={{ fontSize: 20 }}>{eur(t.labor + parts)}</span></div>
+          {order.total_override !== null
+            ? <>
+              <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 6 }}><span className="hd">K úhrade · upravená suma</span><span className="hd" style={{ fontSize: 20, color: 'var(--color-bad)' }}>{eur(order.total_override)}</span></div>
+              <div className="r-line muted" style={{ fontSize: 12 }}><span>vypočítané</span><s>{eur(t.labor + parts)}</s></div>
+            </>
+            : <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 6 }}><span className="hd">K úhrade</span><span className="hd" style={{ fontSize: 20 }}>{eur(t.labor + parts)}</span></div>}
         </div>
         <div className="muted" style={{ fontSize: 12 }}>Stopky sa zastavia a zákazka prejde do stavu „čaká na platbu“. Ceny dielov sa dajú neskôr zmeniť v desktopovom detaile.</div>
         {error && <div className="form-error" role="alert">{error}</div>}

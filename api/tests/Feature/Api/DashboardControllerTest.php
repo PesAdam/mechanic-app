@@ -15,7 +15,7 @@ class DashboardControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_week_summary_counts_hours_parts_billing_and_dues_inside_the_week(): void
+    public function test_week_summary_counts_hours_inside_the_week_and_money_of_the_orders_closed_in_it(): void
     {
         $this->travelTo('2026-10-14 12:00:00'); // streda, týždeň 42
         Setting::set('hourly_rate', 28);
@@ -36,18 +36,19 @@ class DashboardControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('label', 'Týždeň 42 · 12.–18. 10. 2026')
             ->assertJsonPath('kpi.hours', 3.5)
-            ->assertJsonPath('kpi.labor', 98)
-            ->assertJsonPath('kpi.parts', 85)
-            ->assertJsonPath('kpi.parts_retail', 120)
-            ->assertJsonPath('kpi.active_days', 2)
             ->assertJsonPath('kpi.billed', 48)
+            ->assertJsonPath('kpi.labor', 28)
+            ->assertJsonPath('kpi.parts_cost', 15)
+            ->assertJsonPath('kpi.parts_margin', 5)
+            ->assertJsonPath('kpi.earnings', 33)
+            ->assertJsonPath('kpi.orders', 1)
             ->assertJsonPath('kpi.due', 48)
             ->assertJsonPath('kpi.due_count', 1)
             ->assertJsonPath('bars.0.label', 'Po')
-            ->assertJsonPath('bars.0.labor', 84)
+            ->assertJsonPath('bars.0.earnings', 33)
             ->assertJsonPath('bars.0.parts', 15)
-            ->assertJsonPath('bars.1.parts', 70)
-            ->assertJsonPath('bars.2.labor', 14)
+            ->assertJsonPath('bars.1.parts', 0)
+            ->assertJsonPath('bars.2.earnings', 0)
             ->assertJsonPath('mechanics.0.hours', 3.5)
             ->assertJsonPath('avg_hours_per_order', 1.8);
     }

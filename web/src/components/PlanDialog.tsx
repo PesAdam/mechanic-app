@@ -65,7 +65,7 @@ export default function PlanDialog({ draft, candidates = [], busy, compact = fal
           <div className="field"><label htmlFor="pl-time">Čas</label><input id="pl-time" className="input" type="time" step={300} value={time} onChange={e => setTime(e.target.value)} required /></div>
         </div>
         <div className="row">
-          <div className="field"><label htmlFor="pl-min">Trvanie (min)</label><input id="pl-min" className="input" type="number" inputMode="numeric" min={5} step={5} value={minutes} onChange={e => setMinutes(e.target.value)} placeholder={order ? `podľa noriem ${plannedMinutes(order)}` : ''} /></div>
+          <div className="field"><label htmlFor="pl-min">Trvanie (min)</label><input id="pl-min" className="input" type="number" inputMode="numeric" min={5} step={1} value={minutes} onChange={e => setMinutes(e.target.value)} placeholder={order ? `podľa noriem ${plannedMinutes(order)}` : ''} /></div>
           <div className="field"><label htmlFor="pl-mech">Mechanik</label>
             <select id="pl-mech" className="input" value={mechanic} onChange={e => setMechanic(e.target.value ? Number(e.target.value) : '')}>
               <option value="">— nepriradený —</option>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\WorkOrderResource;
 use App\Models\Part;
 use App\Models\WorkOrder;
+use App\Services\OrderTotals;
 use Illuminate\Http\Request;
 
 class PartController extends Controller
@@ -21,6 +22,7 @@ class PartController extends Controller
         ]);
 
         $order->parts()->create([...$data, 'used' => $data['used'] ?? true, 'added_at' => now()]);
+        OrderTotals::rebase($order);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($order->id));
     }
@@ -36,6 +38,7 @@ class PartController extends Controller
         ]);
 
         $part->update($data);
+        OrderTotals::rebase($part->workOrder);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($part->work_order_id));
     }
@@ -44,6 +47,7 @@ class PartController extends Controller
     {
         $orderId = $part->work_order_id;
         $part->delete();
+        OrderTotals::rebase($part->workOrder);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($orderId));
     }

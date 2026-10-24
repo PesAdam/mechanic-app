@@ -12,7 +12,7 @@ import NewJobDialog from '../components/NewJobDialog'
 
 const PERIODS: [Period, string][] = [['week', 'Týždeň'], ['month', 'Mesiac'], ['year', 'Rok']]
 
-/** 1d · Prehľad — parts spend, hours, margin and the open orders. */
+/** 1d · Prehľad — zárobok (billed minus what the parts cost), hours, payments and the open orders. */
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('week')
   const dash = useDashboard(period)
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const billing = settings.data?.labor_billing
   const now = useNow(list.some(isRunning))
   const open = [...list.filter(o => o.status !== 'done')].sort(byPlan)
-  const maxBar = Math.max(1, ...(d?.bars.flatMap(b => [b.labor, b.parts]) ?? []))
+  const maxBar = Math.max(1, ...(d?.bars.flatMap(b => [b.earnings, b.parts]) ?? []))
   const maxMech = Math.max(0.1, ...(d?.mechanics.map(m => m.hours) ?? []))
 
   return (
@@ -49,23 +49,25 @@ export default function Dashboard() {
       {dash.isError && !d && <Blueprint style={{ padding: 14 }}><div style={{ fontSize: 13 }}>Prehľad sa nepodarilo načítať. <button className="btn btn-ghost" onClick={() => void dash.refetch()}>Skúsiť znova</button></div></Blueprint>}
 
       <div className="kpi-grid">
-        <Kpi k="Diely nakúpené · NC" v={d ? eur(d.kpi.parts) : '…'} m={d ? `predané za ${eur(d.kpi.parts_retail)} MOC · ${d.kpi.active_days} ${plural(d.kpi.active_days, 'aktívny deň', 'aktívne dni', 'aktívnych dní')}` : ''} />
-        <Kpi k="Hodiny pri autách" v={d ? hoursSk(d.kpi.hours) : '…'} m={d ? `${eur(d.kpi.labor)} práca` : ''}
-          extra={d && d.kpi.efficiency !== null ? <span className={d.kpi.efficiency >= 100 ? 'norm-ok' : 'norm-bad'}> · efektivita {d.kpi.efficiency} % (norma {hoursSk(d.kpi.norm_hours)})</span> : null} />
-        <Kpi k="Fakturované" v={d ? eur(d.kpi.billed) : '…'} m={d ? (d.kpi.margin === null ? 'bez uzavretých zákaziek' : `marža ${d.kpi.margin} %`) : ''} />
+        <Kpi k="Zárobok · bez dielov" v={d ? eur(d.kpi.earnings) : '…'} accent
+          m={d ? `práca ${eur(d.kpi.labor)} + marža na dieloch ${eur(d.kpi.parts_margin)}${d.kpi.discount ? ` − zľavy ${eur(d.kpi.discount)}` : ''}` : ''} />
+        <Kpi k="Fakturované" v={d ? eur(d.kpi.billed) : '…'}
+          m={d ? (d.kpi.orders ? `z toho nákup dielov ${eur(d.kpi.parts_cost)} · ${d.kpi.orders} ${plural(d.kpi.orders, 'zákazka', 'zákazky', 'zákaziek')}` : 'zatiaľ bez uzavretých zákaziek') : ''} />
+        <Kpi k="Hodiny pri autách" v={d ? hoursSk(d.kpi.hours) : '…'} m={d && d.kpi.efficiency === null ? 'bez noriem' : ''}
+          extra={d && d.kpi.efficiency !== null ? <span className={d.kpi.efficiency >= 100 ? 'norm-ok' : 'norm-bad'}>efektivita {d.kpi.efficiency} % (norma {hoursSk(d.kpi.norm_hours)})</span> : null} />
         <Kpi k="Zaplatené" v={d ? eur(d.kpi.paid) : '…'} m={d ? `${d.kpi.paid_count} ${plural(d.kpi.paid_count, 'doklad uhradený', 'doklady uhradené', 'dokladov uhradených')}` : ''} />
-        <Kpi k="Zostáva zaplatiť" v={d ? eur(d.kpi.due) : '…'} m={d ? `${d.kpi.due_count} ${plural(d.kpi.due_count, 'doklad neuhradený', 'doklady neuhradené', 'dokladov neuhradených')}` : ''} accent />
+        <Kpi k="Zostáva zaplatiť" v={d ? eur(d.kpi.due) : '…'} m={d ? `${d.kpi.due_count} ${plural(d.kpi.due_count, 'doklad neuhradený', 'doklady neuhradené', 'dokladov neuhradených')}` : ''} />
       </div>
 
       <div className="dash-mid">
         <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-            <span className="card-title">Práca vs. diely</span><span className="card-meta">plná = práca · obrys = diely v NC</span>
+            <span className="card-title">Zárobok a diely</span><span className="card-meta">plná = zárobok · obrys = nákup dielov · podľa dňa uzavretia</span>
           </div>
-          <div className="bars" role="img" aria-label="Práca a diely po obdobiach">
+          <div className="bars" role="img" aria-label="Zárobok a nákup dielov po obdobiach">
             {(d?.bars ?? []).map((b, i) => (
-              <div key={i} className="bar-pair" title={`${b.label}: práca ${eur(b.labor)}, diely ${eur(b.parts)}`}>
-                <div className="bar-labor" style={{ height: `${(b.labor / maxBar) * 100}%` }} />
+              <div key={i} className="bar-pair" title={`${b.label}: zárobok ${eur(b.earnings)}, nákup dielov ${eur(b.parts)}`}>
+                <div className="bar-labor" style={{ height: `${(Math.max(0, b.earnings) / maxBar) * 100}%` }} />
                 <div className="bar-parts" style={{ height: `${(b.parts / maxBar) * 100}%`, visibility: b.parts ? 'visible' : 'hidden' }} />
               </div>
             ))}
@@ -83,7 +85,7 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-          <span className="card-meta" style={{ marginTop: 'auto' }}>Sadzba {rate} €/h · priemer {d ? hoursSk(d.avg_hours_per_order) : '…'} na zákazku</span>
+          <span className="card-meta" style={{ marginTop: 'auto' }}>Sadzba {rate} €/h · priemer {d ? hoursSk(d.avg_hours_per_order) : '…'} na zákazku · <Link to="/admin/statistika">Štatistika →</Link></span>
         </Blueprint>
       </div>
 

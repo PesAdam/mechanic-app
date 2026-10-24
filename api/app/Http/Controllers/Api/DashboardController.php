@@ -4,17 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
-use App\Models\Part;
 use App\Models\User;
 use App\Models\WorkEntry;
 use App\Models\WorkOrder;
+use App\Services\Earnings;
 use App\Services\OrderTotals;
 use App\Services\Settings;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** Prehľad: parts spend, hours, billing and workload for a week, month or year. */
+/** Prehľad: zárobok, billing, hours and workload for a week, month or year. */
 class DashboardController extends Controller
 {
     private const MONTHS = ['Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún', 'Júl', 'August', 'September', 'Október', 'November', 'December'];
@@ -35,52 +35,33 @@ class DashboardController extends Controller
             ->where('started_at', '<=', $end)
             ->get();
 
-        $parts = Part::query()
-            ->where('used', true)
-            ->where('added_at', '>=', $start)
-            ->where('added_at', '<=', $end)
-            ->get();
-
-        $closed = WorkOrder::query()->withEverything()
-            ->whereIn('status', [OrderStatus::Unpaid->value, OrderStatus::Done->value])
-            ->whereNotNull('closed_at')
-            ->where('closed_at', '>=', $start)
-            ->where('closed_at', '<=', $end)
-            ->get();
+        // Money counts on the day an order is closed, so billing, parts and zárobok always describe the same orders.
+        $closed = Earnings::closedBetween($start, $end);
 
         $unpaid = WorkOrder::query()->withEverything()->where('status', OrderStatus::Unpaid->value)->get();
 
-        $bars = array_map(fn (string $l) => ['label' => $l, 'labor' => 0.0, 'parts' => 0.0], $buckets);
+        $bars = array_map(fn (string $l) => ['label' => $l, 'earnings' => 0.0, 'parts' => 0.0], $buckets);
         $seconds = 0;
         $byUser = [];
-        $days = [];
         $orders = [];
 
         foreach ($entries as $e) {
             $s = $e->seconds($now);
             $seconds += $s;
             $byUser[$e->user_id] = ($byUser[$e->user_id] ?? 0) + $s;
-            $days[$e->started_at->toDateString()] = true;
             $orders[$e->work_order_id] = true;
-            $i = $bucketOf(CarbonImmutable::instance($e->started_at));
+        }
+
+        foreach ($closed as $o) {
+            $i = $bucketOf(CarbonImmutable::instance($o->closed_at));
             if (isset($bars[$i])) {
-                $bars[$i]['labor'] += $s / 3600 * $rate;
+                $line = Earnings::line($o, $rate, $now);
+                $bars[$i]['earnings'] += $line['earnings'];
+                $bars[$i]['parts'] += $line['parts_cost'];
             }
         }
 
-        // Prehľad counts parts at purchase price (NC); the invoice uses retail (MOC).
-        $partsSum = 0.0;
-        $partsRetail = 0.0;
-        foreach ($parts as $p) {
-            $partsSum += $p->cost();
-            $partsRetail += (float) $p->price;
-            $i = $bucketOf(CarbonImmutable::instance($p->added_at));
-            if (isset($bars[$i])) {
-                $bars[$i]['parts'] += $p->cost();
-            }
-        }
-
-        $billed = $closed->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['grand']);
+        $money = Earnings::of($closed, $rate, $now);
         $withNorms = $closed->filter(fn (WorkOrder $o) => $o->operations->isNotEmpty());
         $normSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => (int) $o->operations->sum('norm_minutes') * 60);
         $actualSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['seconds']);
@@ -99,13 +80,14 @@ class DashboardController extends Controller
             'label' => $label,
             'rate' => $rate,
             'kpi' => [
-                'parts' => round($partsSum, 2),
-                'parts_retail' => round($partsRetail, 2),
-                'active_days' => count($days),
+                'earnings' => $money['earnings'],
+                'billed' => $money['billed'],
+                'labor' => $money['labor'],
+                'parts_cost' => $money['parts_cost'],
+                'parts_margin' => $money['parts_margin'],
+                'discount' => $money['discount'],
+                'orders' => $money['orders'],
                 'hours' => round($hours, 1),
-                'labor' => round($hours * $rate, 2),
-                'billed' => round($billed, 2),
-                'margin' => $billed > 0 ? (int) round((1 - $partsSum / $billed) * 100) : null,
                 'paid' => round($paidSum, 2),
                 'paid_count' => $paid->count(),
                 'due' => round($due, 2),
@@ -113,7 +95,7 @@ class DashboardController extends Controller
                 'norm_hours' => round($normSeconds / 3600, 1),
                 'efficiency' => $actualSeconds > 0 ? (int) round($normSeconds / $actualSeconds * 100) : null,
             ],
-            'bars' => array_map(fn ($b) => ['label' => $b['label'], 'labor' => round($b['labor'], 2), 'parts' => round($b['parts'], 2)], $bars),
+            'bars' => array_map(fn ($b) => ['label' => $b['label'], 'earnings' => round($b['earnings'], 2), 'parts' => round($b['parts'], 2)], $bars),
             'mechanics' => $mechanics,
             'avg_hours_per_order' => count($orders) ? round($hours / count($orders), 1) : 0,
         ]);

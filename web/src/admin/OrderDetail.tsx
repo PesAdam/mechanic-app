@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { Check, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react'
+import { Check, FileText, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { defaultStartOp, entrySeconds, firstName, isClosed, isRunning, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
+import { defaultStartOp, entrySeconds, firstName, isClosed, isPaid, isRunning, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, hoursSk, km, localToIso, shortVin, skDate, timeOf } from '../lib/format'
 import { publicReportUrl } from '../lib/share'
 import type { CodeStatus, Order, Part, PhotoStage, WorkEntry } from '../lib/types'
@@ -19,8 +19,9 @@ import NormBadge from '../components/NormBadge'
 import OperationsSection from '../components/OperationsSection'
 import AddPhotoTile from '../components/AddPhotoTile'
 import ShareReport from '../components/ShareReport'
+import TotalEdit from '../components/TotalEdit'
 import MakeLogo from '../components/MakeLogo'
-import { AddCodeDialog, AddPartDialog, ManualTimeDialog } from '../components/JobDialogs'
+import { AddCodeDialog, AddPartDialog, EditCarDialog, ManualTimeDialog } from '../components/JobDialogs'
 
 const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
 const CODE_TAG: Record<CodeStatus, [string, string]> = { fixed: ['Odstránené', 'tag-accent'], watch: ['Sledovať', 'tag-neutral'], open: ['Otvorené', 'tag-outline'] }
@@ -42,6 +43,9 @@ export default function OrderDetail() {
   const [editPart, setEditPart] = useState<Part | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
+  const [carOpen, setCarOpen] = useState(false)
+  // A paid order opens read-only; "Upraviť" unlocks it for this visit.
+  const [unlockedId, setUnlockedId] = useState<number | null>(null)
   const diagInput = useRef<HTMLInputElement>(null)
 
   if (!order) {
@@ -51,6 +55,8 @@ export default function OrderDetail() {
   const rate = settings.data?.hourly_rate ?? 28
   const t = totalsOf(order, rate, now, settings.data?.labor_billing)
   const closed = isClosed(order)
+  // Closed = no stopwatch any more; a paid order is read-only until unlocked.
+  const locked = isPaid(order) && unlockedId !== order.id
   const mine = user ? runningEntryOf(order, user.id) : null
   const startOp = user ? defaultStartOp(order, user.id) : null
   const codes = order.diagnostic?.codes ?? []
@@ -69,7 +75,9 @@ export default function OrderDetail() {
       <div className="admin-head">
         <div>
           <div className="kicker"><Link to="/admin/zakazky">Zákazky</Link> · #{order.number}{order.received_at ? ` · prijaté ${skDate(dateOf(order.received_at))} ${timeOf(order.received_at)}` : ''}</div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MakeLogo name={order.car.make} url={order.car.logo_url} size={34} decorative />{carName(order.car)}</h1>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MakeLogo name={order.car.make} url={order.car.logo_url} size={34} decorative />{carName(order.car)}
+            <button type="button" className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} onClick={() => setCarOpen(true)} aria-label="Upraviť vozidlo" title="Opraviť značku, model, motorizáciu, ŠPZ alebo VIN"><Pencil size={16} strokeWidth={1.5} /></button>
+          </h1>
           <div className="muted" style={{ fontSize: 13 }}>{order.car.plate} · {km(order.car.km)} · VIN {shortVin(order.car.vin)} · {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ''}</div>
         </div>
         <div className="admin-actions">
@@ -77,6 +85,10 @@ export default function OrderDetail() {
           {!closed && <button className="btn btn-primary blueprint" style={{ minHeight: 36 }} onClick={() => setCloseOpen(true)} disabled={act.busy}><Corners />Uzavrieť a vytvoriť report</button>}
           {closed && <Link className="btn btn-primary blueprint" style={{ minHeight: 36 }} to={`/admin/reporty/${order.id}`}><Corners /><FileText size={16} strokeWidth={1.5} />Report</Link>}
           {order.status === 'unpaid' && <button className="btn btn-secondary" style={{ minHeight: 36 }} onClick={() => void act.run(() => actions.updateOrder(order.id, { status: 'done' }))} disabled={act.busy}><Check size={16} strokeWidth={1.5} />Označiť ako uhradené</button>}
+          {isPaid(order) && (locked
+            ? <button className="btn btn-secondary" style={{ minHeight: 36 }} title="Opraviť úkony, čas, diely, fotky alebo sumu uhradenej zákazky"
+                onClick={() => { if (window.confirm('Zákazka je už uhradená. Upraviť ju? Zmeny sa prejavia aj na reporte pre zákazníka.')) setUnlockedId(order.id) }}><Pencil size={16} strokeWidth={1.5} />Upraviť</button>
+            : <button className="btn btn-secondary" style={{ minHeight: 36 }} title="Znova zamknúť uhradenú zákazku" onClick={() => setUnlockedId(null)}><Check size={16} strokeWidth={1.5} />Hotovo</button>)}
         </div>
       </div>
       {act.error && <div className="form-error" role="alert">{act.error}</div>}
@@ -85,20 +97,20 @@ export default function OrderDetail() {
         <div className="order-col">
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Úkony</span><span className="muted" style={{ fontSize: 13 }}>{t.norm_seconds ? `norma ${hm(t.norm_seconds)}` : 'bez normy'}</span></div>
-            <OperationsSection order={order} closed={closed} title={false} now={now} rate={rate} />
+            <OperationsSection order={order} closed={closed} locked={locked} title={false} now={now} rate={rate} />
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Čas pri aute</span><span className={`hd num ${normClass(t.seconds, t.norm_seconds)}`}>{hm(t.seconds)}</span></div>
             {t.norm_seconds > 0 && <div style={{ fontSize: 13 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} size={13} /></div>}
             <div>
-              {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} order={order} closed={closed} busy={act.busy} onAssign={opId => void act.run(() => actions.updateEntry(e.id, { order_operation_id: opId }))}
+              {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} order={order} locked={locked} busy={act.busy} onAssign={opId => void act.run(() => actions.updateEntry(e.id, { order_operation_id: opId }))}
                 onRemove={() => { if (window.confirm(`Zmazať zápis ${firstName(e.user.name)} ${timeOf(e.started_at)}${e.ended_at ? `–${timeOf(e.ended_at)}` : ''} (${hm(entrySeconds(e, now))})?`)) void act.run(() => actions.removeEntry(order.id, e.id)) }} />)}
               {!order.work_entries.length && <div className="muted" style={{ fontSize: 13 }}>Zatiaľ bez zapísanej práce.</div>}
             </div>
-            {!closed && (
+            {!locked && (
               <div style={{ display: 'flex', gap: 8 }}>
-                {mine
+                {closed ? null : mine
                   ? <button className="btn btn-secondary" onClick={() => void act.run(() => actions.stopTimer(order.id))} disabled={act.busy}><Pause size={16} strokeWidth={1.5} />Pauza</button>
                   : <button className="btn btn-primary blueprint" onClick={() => void act.run(() => actions.startTimer(order.id, startOp ? { order_operation_id: startOp.id } : {}))} disabled={act.busy}><Corners /><Play size={16} strokeWidth={1.5} />Štart (ja){startOp ? ` · ${startOp.name}` : ''}</button>}
                 <button className="btn btn-secondary" onClick={() => setManualOpen(true)} disabled={act.busy}><Plus size={16} strokeWidth={1.5} />Ručný zápis</button>
@@ -108,13 +120,13 @@ export default function OrderDetail() {
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Diely</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><PricingSwitch order={order} compact disabled={act.busy} /><span className="hd num">{eur(t.parts)}</span></span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><PricingSwitch order={order} compact disabled={act.busy || locked} /><span className="hd num">{eur(t.parts)}</span></span>
             </div>
             <div>
-              {order.parts.map(p => <PartRow key={p.id} part={p} mode={order.parts_pricing} disabled={closed || act.busy} onToggle={() => void act.run(() => actions.updatePart(p.id, { used: !p.used }))} onEdit={() => setEditPart(p)} />)}
+              {order.parts.map(p => <PartRow key={p.id} part={p} mode={order.parts_pricing} disabled={locked || act.busy} onToggle={() => void act.run(() => actions.updatePart(p.id, { used: !p.used }))} onEdit={() => setEditPart(p)} />)}
               {!order.parts.length && <div className="muted" style={{ fontSize: 13 }}>Zatiaľ bez dielov.</div>}
             </div>
-            {!closed && <button className="btn btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setPartOpen(true)}>+ Pridať diel</button>}
+            {!locked && <button className="btn btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setPartOpen(true)}>+ Pridať diel</button>}
           </Blueprint>
         </div>
 
@@ -125,19 +137,19 @@ export default function OrderDetail() {
               {order.photos.map(p => (
                 <div key={p.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <ImageSlot src={p.url} label={p.label} style={{ aspectRatio: '1', width: '100%', flex: 'none' }}
-                    onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
-                    onRemove={closed ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
+                    onPick={locked ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
+                    onRemove={locked ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
                   <span className="muted" style={{ fontSize: 11 }}>{p.label}{p.url && <> · <a href={p.url} target="_blank" rel="noreferrer">otvoriť</a></>}</span>
                 </div>
               ))}
-              {!closed && <AddPhotoTile onPick={addPhotos} />}
+              {!locked && <AddPhotoTile onPick={addPhotos} />}
             </div>
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}>
               <span className="card-title">Diagnostika</span>
-              {!closed && <span style={{ display: 'flex', gap: 4 }}>
+              {!locked && <span style={{ display: 'flex', gap: 4 }}>
                 <button className="btn btn-ghost" style={{ minHeight: 30 }} onClick={() => diagInput.current?.click()}>Priložiť protokol</button>
                 <button className="btn btn-ghost" style={{ minHeight: 30 }} onClick={() => setCodeOpen(true)}>+ kód</button>
               </span>}
@@ -168,12 +180,21 @@ export default function OrderDetail() {
             <div className="r-line" style={{ fontSize: 13 }}><span>Práca · {t.labor_billing === 'norm' ? `${hoursSk(t.norm_seconds / 3600)} NH` : hm(t.seconds)} × {rate} €/h</span><span>{eur(t.labor)}</span></div>
             {t.labor_billing === 'norm' && <div className="r-line muted" style={{ fontSize: 12 }}><span>Skutočný čas {hm(t.seconds)}</span><span>{eur(t.labor_actual)}</span></div>}
             <div className="r-line" style={{ fontSize: 13 }}><span>Diely · {order.parts_pricing === 'nc' ? 'NC' : 'MOC'} (na reporte)</span><span>{eur(t.parts)}</span></div>
-            <div className="r-line muted" style={{ fontSize: 12 }}><span>Diely v MOC</span><span>{eur(t.parts_retail)}</span></div>
-            <div className="r-line muted" style={{ fontSize: 12 }}><span>Nákup dielov · NC</span><span>{eur(t.parts_cost)}</span></div>
-            <div className="r-line muted" style={{ fontSize: 12 }}><span>Marža na dieloch</span><span>{eur(t.parts - t.parts_cost)}</span></div>
-            <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8, alignItems: 'baseline' }}>
-              <span className="hd" style={{ fontSize: 16 }}>Spolu</span><span className="hd" style={{ fontSize: 26, lineHeight: 1 }}>{eur(t.grand)}</span>
+            {/* Only for orientation: the other price level never enters Spolu. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderLeft: '2px solid var(--color-divider)', paddingLeft: 8 }}>
+              {order.parts_pricing === 'nc'
+                ? <div className="r-line muted" style={{ fontSize: 12 }}><span>V MOC by diely stáli</span><span>{eur(t.parts_retail)}</span></div>
+                : <>
+                  <div className="r-line muted" style={{ fontSize: 12 }}><span>Nákup dielov · NC</span><span>{eur(t.parts_cost)}</span></div>
+                  <div className="r-line muted" style={{ fontSize: 12 }}><span>Marža na dieloch</span><span>{eur(t.parts - t.parts_cost)}</span></div>
+                </>}
+              <span className="muted" style={{ fontSize: 11 }}>len pre info, do súčtu sa neráta</span>
             </div>
+            <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8, alignItems: 'baseline' }}>
+              <span className="hd" style={{ fontSize: 16 }}>Spolu</span>
+              <TotalEdit large locked={locked} order={order} grand={t.grand} computed={t.grand_computed} busy={act.busy} onSave={v => act.run(() => actions.updateOrder(order.id, { total_override: v }))} />
+            </div>
+            {!locked && order.total_override !== null && <div className="muted" style={{ fontSize: 11 }}>Suma je pevná – ďalší čas ani diely ju už nezmenia. ↺ vráti výpočet.</div>}
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
@@ -198,7 +219,7 @@ export default function OrderDetail() {
               </div>
             </div>
             <div className="field"><label htmlFor="od-plan-min">Plánované trvanie (min)</label>
-              <input id="od-plan-min" className="input" type="number" inputMode="numeric" min={5} step={5} key={`pm-${order.planned_minutes ?? ''}`} defaultValue={order.planned_minutes ?? ''} placeholder={`podľa noriem ${plannedMinutes(order)}`} disabled={act.busy}
+              <input id="od-plan-min" className="input" type="number" inputMode="numeric" min={5} step={1} key={`pm-${order.planned_minutes ?? ''}`} defaultValue={order.planned_minutes ?? ''} placeholder={`podľa noriem ${plannedMinutes(order)}`} disabled={act.busy}
                 onBlur={e => { const v = parseInt(e.target.value, 10) || null; if (v !== order.planned_minutes) void act.run(() => actions.updateOrder(order.id, { planned_minutes: v })) }} />
             </div>
             <div className="field"><label htmlFor="od-summary">Čo treba spraviť</label>
@@ -241,12 +262,13 @@ export default function OrderDetail() {
       <AddPartDialog open={!!editPart} onClose={() => setEditPart(null)} orderId={order.id} part={editPart ?? undefined} />
       {closeOpen && <CloseOrderDialog order={order} rate={rate} now={now} billing={settings.data?.labor_billing} open onClose={() => setCloseOpen(false)} />}
       <AddCodeDialog open={codeOpen} onClose={() => setCodeOpen(false)} orderId={order.id} />
+      {carOpen && <EditCarDialog open onClose={() => setCarOpen(false)} orderId={order.id} car={order.car} />}
     </div>
   )
 }
 
-/** One stint; on an open order the job it counts for can be picked right here. */
-function EntryRow({ entry, now, order, closed, busy, onAssign, onRemove }: { entry: WorkEntry; now: number; order: Order; closed: boolean; busy: boolean; onAssign: (opId: number | null) => void; onRemove: () => void }) {
+/** One stint; until the order is paid the job it counts for can be picked right here. */
+function EntryRow({ entry, now, order, locked, busy, onAssign, onRemove }: { entry: WorkEntry; now: number; order: Order; locked: boolean; busy: boolean; onAssign: (opId: number | null) => void; onRemove: () => void }) {
   const running = !entry.ended_at
   const job = (order.operations ?? []).find(op => op.id === entry.order_operation_id)
   const flagged = entry.auto_closed
@@ -255,7 +277,7 @@ function EntryRow({ entry, now, order, closed, busy, onAssign, onRemove }: { ent
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {running && <i className="dot live" />}{firstName(entry.user.name)}{entry.manual ? <span className="tag tag-neutral">ručne</span> : null}
-          {closed
+          {locked
             ? <span className="muted" style={{ fontWeight: 400 }}>· {job?.name ?? 'bez úkonu'}</span>
             : <select className="input entry-op" aria-label="Úkon" value={entry.order_operation_id ?? ''} disabled={busy} onChange={e => onAssign(e.target.value ? Number(e.target.value) : null)}>
               <option value="">— bez úkonu —</option>
@@ -269,7 +291,7 @@ function EntryRow({ entry, now, order, closed, busy, onAssign, onRemove }: { ent
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div className="hd num" style={{ whiteSpace: 'nowrap' }}>{running ? hms(entrySeconds(entry, now)) : hm(entry.seconds)}</div>
-        {!closed && <button type="button" className="btn btn-ghost btn-icon" style={{ width: 28, height: 28 }} aria-label="Zmazať zápis" title="Zmazať zápis času" disabled={busy} onClick={onRemove}><Trash2 size={13} strokeWidth={1.5} /></button>}
+        {!locked && <button type="button" className="btn btn-ghost btn-icon" style={{ width: 28, height: 28 }} aria-label="Zmazať zápis" title="Zmazať zápis času" disabled={busy} onClick={onRemove}><Trash2 size={13} strokeWidth={1.5} /></button>}
       </div>
     </div>
   )

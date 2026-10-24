@@ -36,4 +36,12 @@ final class OperationSamples
             ]);
         }
     }
+
+    /** Time or jobs corrected on a closed order waiting for payment: its samples follow the correction. */
+    public static function refresh(WorkOrder $order): void
+    {
+        if ($order->isClosed()) {
+            self::record($order->fresh());
+        }
+    }
 }

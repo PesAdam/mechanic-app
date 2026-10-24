@@ -52,4 +52,14 @@ final class OrderTotals
             'grand' => $order->total_override !== null ? (float) $order->total_override : $computed,
         ];
     }
+
+    /** A closed order with a hand-edited total keeps its zľava measured against what the order adds up to now. */
+    public static function rebase(WorkOrder $order): void
+    {
+        if (! $order->isClosed() || $order->total_override === null) {
+            return;
+        }
+        $fresh = WorkOrder::query()->withEverything()->findOrFail($order->id);
+        $fresh->update(['total_original' => self::compute($fresh, Settings::rate())['grand_computed']]);
+    }
 }

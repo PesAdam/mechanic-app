@@ -123,14 +123,14 @@ class OrderOperationControllerTest extends TestCase
         $this->assertNull($theirs->fresh()->ended_at);
     }
 
-    public function test_closed_orders_freeze_their_jobs_and_a_job_with_time_cannot_be_deleted(): void
+    public function test_paid_orders_can_still_be_corrected_but_a_job_with_time_cannot_be_deleted(): void
     {
         $user = User::factory()->create();
         Sanctum::actingAs($user);
-        $closed = WorkOrder::factory()->unpaid()->create();
-        $frozen = $closed->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
-        $this->patchJson("/api/v1/order-operations/{$frozen->id}", ['norm_minutes' => 10])->assertConflict();
-        $this->deleteJson("/api/v1/order-operations/{$frozen->id}")->assertConflict();
+        $paid = WorkOrder::factory()->paid()->create();
+        $job = $paid->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+        $this->patchJson("/api/v1/order-operations/{$job->id}", ['norm_minutes' => 10])->assertOk()->assertJsonPath('data.status', 'done');
+        $this->deleteJson("/api/v1/order-operations/{$job->id}")->assertOk();
 
         $open = WorkOrder::factory()->open()->create();
         $clocked = $open->operations()->create(['name' => 'Olej', 'norm_minutes' => 30, 'sort' => 0]);
@@ -228,5 +228,21 @@ class OrderOperationControllerTest extends TestCase
         $this->assertEqualsWithDelta(14.0, $data['totals']['labor'], 0.001);
         $this->assertEqualsWithDelta(14.0, array_sum(array_column($data['operations'], 'amount')), 0.001);
         $this->assertEqualsWithDelta(14.0, array_sum(array_column($data['report']['rows'], 'amount')), 0.001);
+    }
+
+    public function test_jobs_of_an_order_waiting_for_payment_can_still_be_corrected(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->unpaid()->create();
+        $job = $order->operations()->create(['name' => 'Brzdy', 'norm_minutes' => 60, 'sort' => 0]);
+
+        $this->patchJson("/api/v1/order-operations/{$job->id}", ['norm_minutes' => 70, 'done' => true])
+            ->assertOk()
+            ->assertJsonPath('data.operations.0.norm_minutes', 70);
+        $this->postJson("/api/v1/orders/{$order->id}/operations", ['name' => 'Odvzdušnenie bŕzd', 'norm_minutes' => 30])
+            ->assertOk()
+            ->assertJsonCount(2, 'data.operations');
+        $this->deleteJson("/api/v1/order-operations/{$job->id}")->assertOk()->assertJsonCount(1, 'data.operations');
+        $this->assertSame('unpaid', $order->fresh()->status->value);
     }
 }

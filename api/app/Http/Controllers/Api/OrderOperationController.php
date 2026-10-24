@@ -8,6 +8,8 @@ use App\Models\Operation;
 use App\Models\OrderOperation;
 use App\Models\WorkOrder;
 use App\Services\Norms;
+use App\Services\OperationSamples;
+use App\Services\OrderTotals;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,8 +24,6 @@ class OrderOperationController extends Controller
             'norm_minutes' => ['required_without:operation_id', 'nullable', 'integer', 'min:1', 'max:6000'],
         ]);
 
-        abort_if($order->isClosed(), 409, 'Zákazka je uzavretá.');
-
         $catalog = isset($data['operation_id']) ? Operation::query()->find($data['operation_id']) : null;
         $resolved = $catalog ? Norms::resolve($catalog, $order->car) : null;
 
@@ -33,6 +33,8 @@ class OrderOperationController extends Controller
             'norm_minutes' => $data['norm_minutes'] ?? $resolved['minutes'],
             'sort' => $order->operations()->count(),
         ]);
+        OperationSamples::refresh($order);
+        OrderTotals::rebase($order);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($order->id));
     }
@@ -46,7 +48,6 @@ class OrderOperationController extends Controller
         ]);
 
         $order = $orderOperation->workOrder;
-        abort_if($order->isClosed(), 409, 'Zákazka je uzavretá.');
 
         DB::transaction(function () use ($request, $order, $orderOperation, $data): void {
             $orderOperation->update($data);
@@ -65,6 +66,8 @@ class OrderOperationController extends Controller
                     $order->workEntries()->create(['user_id' => $running->user_id, 'order_operation_id' => $next?->id, 'started_at' => $now]);
                 }
             }
+            OperationSamples::refresh($order);
+            OrderTotals::rebase($order);
         });
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($orderOperation->work_order_id));
@@ -73,11 +76,13 @@ class OrderOperationController extends Controller
     /** A job with clocked time is not deleted: that time would silently become "bez úkonu". Reassign it first. */
     public function destroy(OrderOperation $orderOperation): WorkOrderResource
     {
-        abort_if($orderOperation->workOrder->isClosed(), 409, 'Zákazka je uzavretá.');
+        $order = $orderOperation->workOrder;
         abort_if($orderOperation->workEntries()->exists(), 409, 'Úkon má zapísaný čas – najprv ho preraďte na iný úkon alebo úkon označte ako hotový.');
 
         $orderId = $orderOperation->work_order_id;
         $orderOperation->delete();
+        OperationSamples::refresh($order);
+        OrderTotals::rebase($order);
 
         return new WorkOrderResource(WorkOrder::query()->withEverything()->find($orderId));
     }

@@ -120,10 +120,39 @@ export interface DashboardData {
   period: Period
   label: string
   rate: number
-  kpi: { parts: number; parts_retail: number; active_days: number; hours: number; labor: number; billed: number; margin: number | null; paid: number; paid_count: number; due: number; due_count: number; norm_hours: number; efficiency: number | null }
-  bars: { label: string; labor: number; parts: number }[]
+  /** Money is of the orders closed in the period; `hours` is the time clocked in it. */
+  kpi: { earnings: number; billed: number; labor: number; parts_cost: number; parts_margin: number; discount: number; orders: number; hours: number; paid: number; paid_count: number; due: number; due_count: number; norm_hours: number; efficiency: number | null }
+  /** By the day orders were closed: zárobok and what their parts cost. */
+  bars: { label: string; earnings: number; parts: number }[]
   mechanics: { id: number; name: string; hours: number }[]
   avg_hours_per_order: number
+}
+
+/** Money of the orders closed in a period. Zárobok = billed − parts at purchase price = labor + parts margin − zľavy. */
+export interface Earnings {
+  orders: number; billed: number; labor: number; parts_billed: number; parts_cost: number; parts_margin: number; discount: number
+  earnings: number; hours: number; per_hour: number | null
+}
+
+export interface EarningsLine {
+  id: number; number: string; closed_at: string | null; status: OrderStatus; car: string; plate: string | null; customer: string | null
+  hours: number; labor: number; parts_billed: number; parts_cost: number; discount: number; billed: number; earnings: number
+}
+
+/** `GET /stats`: one week, month or year next to the one before and the same one a year earlier. */
+export interface StatsData {
+  period: Period
+  label: string
+  start: string
+  end: string
+  previous_date: string
+  /** null when the period is the current one (nothing to page forward to). */
+  next_date: string | null
+  current: Earnings
+  previous: Earnings & { label: string }
+  year_earlier: (Earnings & { label: string }) | null
+  trend: (Earnings & { label: string; title: string; date: string })[]
+  orders: EarningsLine[]
 }
 
 export interface NewOrderPayload {

@@ -9,6 +9,8 @@ export const runningEntryOf = (o: Order, userId: number): WorkEntry | null =>
   o.work_entries.find(e => !e.ended_at && e.user.id === userId) ?? null
 export const isRunning = (o: Order): boolean => o.work_entries.some(e => !e.ended_at)
 export const isClosed = (o: Order): boolean => o.status === 'unpaid' || o.status === 'done'
+/** Paid is final; a closed order waiting for payment can still be corrected. */
+export const isPaid = (o: Order): boolean => o.status === 'done'
 
 export const totalSeconds = (o: Order, now: number): number => o.work_entries.reduce((a, e) => a + entrySeconds(e, now), 0)
 

@@ -10,6 +10,7 @@ use App\Models\Car;
 use App\Models\Customer;
 use App\Models\WorkOrder;
 use App\Services\CarCatalog;
+use App\Services\Norms;
 use App\Services\OperationSamples;
 use App\Services\OrderTotals;
 use App\Services\Settings;
@@ -57,13 +58,7 @@ class WorkOrderController extends Controller
         ]);
 
         $order = DB::transaction(function () use ($data) {
-            $vehicle = CarCatalog::resolve($data['car']['make'], $data['car']['model'], $data['car']['engine'] ?? null);
-            $attributes = [
-                'make' => $vehicle['make']->name,
-                'model' => $vehicle['model']->name,
-                'engine' => $vehicle['engine']?->name,
-                'car_model_id' => $vehicle['model']->id,
-                'car_engine_id' => $vehicle['engine']?->id,
+            $attributes = self::vehicle($data['car']) + [
                 'plate' => mb_strtoupper($data['car']['plate']),
                 'vin' => isset($data['car']['vin']) ? mb_strtoupper($data['car']['vin']) : null,
                 'km' => $data['car']['km'] ?? 0,
@@ -115,11 +110,19 @@ class WorkOrderController extends Controller
             'customer.name' => ['sometimes', 'string', 'max:120'],
             'customer.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
             'customer.email' => ['sometimes', 'nullable', 'email', 'max:120'],
+            'car.make' => ['required_with:car.model', 'string', 'max:64'],
+            'car.model' => ['required_with:car.make', 'string', 'max:128'],
+            'car.engine' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'car.plate' => ['sometimes', 'string', 'max:16'],
+            'car.vin' => ['sometimes', 'nullable', 'string', 'max:17'],
         ]);
 
         DB::transaction(function () use ($order, $data): void {
             if (array_key_exists('km', $data)) {
                 $order->car->update(['km' => $data['km']]);
+            }
+            if (isset($data['car'])) {
+                $this->updateCar($order, $data['car']);
             }
             if (isset($data['customer'])) {
                 $order->customer->update($data['customer']);
@@ -127,11 +130,14 @@ class WorkOrderController extends Controller
             if (array_key_exists('planned_at', $data)) {
                 $data['planned_at'] = self::localTime($data['planned_at']);
             }
-            $order->update(Arr::except($data, ['km', 'customer']));
+            $order->update(Arr::except($data, ['km', 'customer', 'car']));
             if (array_key_exists('total_override', $data)) {
                 // Keep the calculated total next to the edited one so the zľava stays visible.
                 $original = $data['total_override'] === null ? null : OrderTotals::compute($this->loaded($order), Settings::rate())['grand_computed'];
                 $order->update(['total_original' => $original]);
+            }
+            if (! array_key_exists('total_override', $data)) {
+                OrderTotals::rebase($order);
             }
         });
 
@@ -151,11 +157,63 @@ class WorkOrderController extends Controller
                 $update += ['status' => OrderStatus::Unpaid, 'closed_at' => $order->closed_at ?? now()];
             }
             $order->update($update);
+            OrderTotals::rebase($order);
 
             OperationSamples::record($order->fresh());
         });
 
         return new WorkOrderResource($this->loaded($order));
+    }
+
+    /**
+     * A mistyped make, model or engine is fixed on the car itself (every order of it shows the same car).
+     * On an open order the catalogue jobs then take the norms of the corrected car; a closed one keeps its norms.
+     *
+     * @param  array{make?: string, model?: string, engine?: string|null, plate?: string, vin?: string|null}  $input
+     */
+    private function updateCar(WorkOrder $order, array $input): void
+    {
+        $car = $order->car;
+        $attributes = isset($input['make']) ? self::vehicle($input) : [];
+        if (isset($input['plate'])) {
+            $attributes['plate'] = mb_strtoupper($input['plate']);
+        }
+        if (array_key_exists('vin', $input)) {
+            $attributes['vin'] = $input['vin'] !== null && $input['vin'] !== '' ? mb_strtoupper($input['vin']) : null;
+        }
+        $car->update($attributes);
+
+        if (! $car->wasChanged(['car_model_id', 'car_engine_id'])) {
+            return;
+        }
+        if ($order->isClosed()) {
+            OperationSamples::refresh($order);
+
+            return;
+        }
+        $car->unsetRelation('carModel')->unsetRelation('carEngine');
+        foreach ($order->operations()->whereNotNull('operation_id')->with('operation')->get() as $job) {
+            $job->update(['norm_minutes' => Norms::resolve($job->operation, $car)['minutes']]);
+        }
+    }
+
+    /**
+     * Make, model and engine filed under the catalogue (unknown ones are added to it).
+     *
+     * @param  array{make: string, model: string, engine?: string|null}  $input
+     * @return array{make: string, model: string, engine: string|null, car_model_id: int, car_engine_id: int|null}
+     */
+    private static function vehicle(array $input): array
+    {
+        $vehicle = CarCatalog::resolve($input['make'], $input['model'], $input['engine'] ?? null);
+
+        return [
+            'make' => $vehicle['make']->name,
+            'model' => $vehicle['model']->name,
+            'engine' => $vehicle['engine']?->name,
+            'car_model_id' => $vehicle['model']->id,
+            'car_engine_id' => $vehicle['engine']?->id,
+        ];
     }
 
     /** Clients send ISO timestamps (usually UTC); the database keeps wall-clock time in the app timezone like every other column. */

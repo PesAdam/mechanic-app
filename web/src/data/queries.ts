@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '../lib/api'
-import type { CarMake, CodeStatus, VehicleLookup, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, ReportSettings, Role, Settings, User } from '../lib/types'
+import type { CarMake, CodeStatus, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, ReportSettings, Role, Settings, StatsData, User, VehicleLookup } from '../lib/types'
 
 export const keys = {
   orders: ['orders'] as const,
@@ -8,6 +8,7 @@ export const keys = {
   users: ['users'] as const,
   settings: ['settings'] as const,
   dashboard: (p: Period) => ['dashboard', p] as const,
+  stats: (p: Period, date: string | null) => ['stats', p, date ?? 'now'] as const,
   report: (token: string) => ['public-report', token] as const,
   operations: (carModelId?: number | null, carEngineId?: number | null, carMakeId?: number | null) =>
     (carModelId || carEngineId || carMakeId ? (['operations', carModelId ?? 0, carEngineId ?? 0, carMakeId ?? 0] as const) : (['operations'] as const)),
@@ -75,6 +76,14 @@ export function useDashboard(period: Period) {
   return useQuery({ queryKey: keys.dashboard(period), queryFn: () => api<DashboardData>(`/dashboard?period=${period}`), refetchInterval: 60_000 })
 }
 
+export function useStats(period: Period, date: string | null) {
+  return useQuery({
+    queryKey: keys.stats(period, date),
+    queryFn: () => api<StatsData>(`/stats?period=${period}${date ? `&date=${date}` : ''}`),
+    placeholderData: prev => prev, // paging keeps the last period on screen instead of blanking it
+  })
+}
+
 export function usePublicReport(token: string) {
   return useQuery({
     queryKey: keys.report(token),
@@ -83,7 +92,7 @@ export function usePublicReport(token: string) {
   })
 }
 
-export interface OrderPatch { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; planned_at?: string | null; planned_minutes?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null } }
+export interface OrderPatch { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; planned_at?: string | null; planned_minutes?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null }; car?: { make?: string; model?: string; engine?: string | null; plate?: string; vin?: string | null } }
 
 /** Every write returns the fresh order, which replaces it in both caches. */
 export function useOrderActions() {
@@ -93,6 +102,7 @@ export function useOrderActions() {
     qc.setQueryData(keys.order(o.id), o)
     qc.setQueryData<Order[]>(keys.orders, list => (list ? list.map(x => (x.id === o.id ? o : x)) : list))
     void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    void qc.invalidateQueries({ queryKey: ['stats'] })
     return o
   }
   const call = (path: string, init: Parameters<typeof api>[1]) => api<{ data: Order }>(path, init).then(unwrap).then(apply)
@@ -141,7 +151,8 @@ export function useOrderActions() {
       .then(order => { if (patch.norm_minutes !== undefined) void qc.invalidateQueries({ queryKey: ['operations'] }); return order }), // an edited norm is kept for the car's model
     removeOrderOperation: (opId: number) => call(`/order-operations/${opId}`, { method: 'DELETE' }),
     updateOrder: (id: number, patch: OrderPatch) =>
-      call(`/orders/${id}`, { method: 'PATCH', json: patch }),
+      call(`/orders/${id}`, { method: 'PATCH', json: patch })
+        .then(order => { if (patch.car?.model) void qc.invalidateQueries({ queryKey: keys.carMakes }); return order }), // a fixed vehicle may add a model or engine to the catalogue
     createOrder: async (payload: NewOrderPayload) => {
       const o = await api<{ data: Order }>('/orders', { method: 'POST', json: payload }).then(unwrap)
       qc.setQueryData(keys.order(o.id), o)
@@ -158,6 +169,7 @@ export function useSettingsActions() {
       const s = await api<Settings>('/settings', { method: 'PATCH', json: patch })
       qc.setQueryData(keys.settings, s)
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    void qc.invalidateQueries({ queryKey: ['stats'] })
       return s
     },
   }
