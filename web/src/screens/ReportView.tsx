@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react'
 import { partPrice, carName } from '../lib/calc'
 import { addDays, dateOf, eur, hhmm, hm, hoursSk, km, shortVin, skDate } from '../lib/format'
 import type { CodeStatus, Order, ReportSettings } from '../lib/types'
+import AddPhotoTile from '../components/AddPhotoTile'
 import Blueprint from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
 import PayBySquare from '../components/PayBySquare'
@@ -10,14 +11,19 @@ import PayBySquare from '../components/PayBySquare'
 const CODE_TAG: Record<CodeStatus, [string, string]> = { fixed: ['Odstránené', 'tag-accent'], watch: ['Sledovať', 'tag-neutral'], open: ['Otvorené', 'tag-outline'] }
 const DUE_DAYS = 14
 
-interface Props { order: Order; settings: ReportSettings; now: number; tools?: ReactNode }
+interface Props {
+  order: Order; settings: ReportSettings; now: number; tools?: ReactNode
+  /** Admin, until the order is paid: photos can still be added straight on the report (the tile never prints). */
+  onAddPhotos?: (blobs: Blob[]) => void
+  photosBusy?: boolean
+}
 
 /**
  * 1e · Report pre zákazníka — photos, diagnostics, labor, parts, invoice + PAY by square.
  * The labour rows, their prices and the totals come from the server (order.report, order.totals), so the
  * page never needs the hourly rate; the €/h figure scares laypeople and is printed only in "Čas × sadzba".
  */
-export default function ReportView({ order, settings, now, tools }: Props) {
+export default function ReportView({ order, settings, now, tools, onAddPhotos, photosBusy }: Props) {
   const b = settings.business
   const mode = settings.report_labor ?? 'price'
   const rate = settings.hourly_rate
@@ -71,6 +77,11 @@ export default function ReportView({ order, settings, now, tools }: Props) {
           <div className="r-photos">
             {photos.length === 0 && <ImageSlot label="Auto zákazníka" />}
             {photos.map(p => <ImageSlot key={p.id} src={p.url} label={p.label ?? 'Fotka'} />)}
+            {onAddPhotos && (
+              <div className="no-print">
+                {photosBusy ? <div className="blueprint add-tile muted" role="status">Nahrávam…</div> : <AddPhotoTile onPick={onAddPhotos} />}
+              </div>
+            )}
           </div>
         </section>
 

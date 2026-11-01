@@ -49,6 +49,7 @@ class WorkOrderResource extends JsonResource
             'planned_at' => $this->planned_at?->toISOString(),
             'planned_minutes' => $this->planned_minutes,
             'closed_at' => $this->closed_at?->toISOString(),
+            'paid_at' => $this->paid_at?->toISOString(),
             'public_token' => $this->public_token,
             'customer' => [
                 'id' => $this->customer->id,

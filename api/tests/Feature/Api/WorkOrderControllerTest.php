@@ -158,6 +158,22 @@ class WorkOrderControllerTest extends TestCase
             ->assertJsonPath('data.total_original', 120);
     }
 
+    public function test_marking_paid_stamps_the_day_of_payment_and_taking_it_back_clears_it(): void
+    {
+        $this->travelTo('2026-10-29 16:40:00');
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->unpaid()->create(['closed_at' => '2026-10-27 12:00:00']);
+
+        // Bratislava is UTC+1 after the clocks went back on 25. 10.
+        $this->patchJson("/api/v1/orders/{$order->id}", ['status' => 'done'])
+            ->assertOk()
+            ->assertJsonPath('data.paid_at', '2026-10-29T15:40:00.000000Z')
+            ->assertJsonPath('data.closed_at', '2026-10-27T11:00:00.000000Z');
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['summary' => 'Brzdy vzadu'])->assertJsonPath('data.paid_at', '2026-10-29T15:40:00.000000Z');
+        $this->patchJson("/api/v1/orders/{$order->id}", ['status' => 'unpaid'])->assertJsonPath('data.paid_at', null);
+    }
+
     public function test_total_override_rejects_a_negative_amount(): void
     {
         Sanctum::actingAs(User::factory()->create());

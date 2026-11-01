@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '../lib/api'
-import type { CarMake, CodeStatus, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, ReportSettings, Role, Settings, StatsData, User, VehicleLookup } from '../lib/types'
+import type { CarMake, ClientInvite, CodeStatus, DashboardData, NewOrderPayload, Operation, Order, OrderStatus, PartsPricing, Period, PhotoStage, PortalAccount, ReportSettings, Role, ServiceRequest, Settings, StatsData, User, VehicleLookup } from '../lib/types'
 
 export const keys = {
   orders: ['orders'] as const,
@@ -14,6 +14,8 @@ export const keys = {
     (carModelId || carEngineId || carMakeId ? (['operations', carModelId ?? 0, carEngineId ?? 0, carMakeId ?? 0] as const) : (['operations'] as const)),
   carMakes: ['car-makes'] as const,
   vehicleLookup: (q: string) => ['vehicle-lookup', q] as const,
+  requests: ['requests'] as const,
+  invites: ['invites'] as const,
 }
 
 const LIVE_INTERVAL = 15_000
@@ -123,6 +125,9 @@ export function useOrderActions() {
       await Promise.all([qc.invalidateQueries({ queryKey: keys.order(orderId) }), qc.invalidateQueries({ queryKey: keys.orders })])
     },
     addPart: (id: number, part: { name: string; meta: string; price: number; purchase_price: number | null }) => call(`/orders/${id}/parts`, { method: 'POST', json: part }),
+    /** Parts read off a supplier's screenshot, added in one request (all or none). */
+    addParts: (id: number, parts: { name: string; meta: string; price: number; purchase_price: number | null }[]) =>
+      call(`/orders/${id}/parts/batch`, { method: 'POST', json: { parts } }),
     updatePart: (partId: number, patch: { used?: boolean; name?: string; meta?: string; price?: number; purchase_price?: number | null }) =>
       call(`/parts/${partId}`, { method: 'PATCH', json: patch }),
     uploadPhoto: (id: number, p: { blob: Blob; label: string; stage: PhotoStage; photo_id?: number }) => {
@@ -233,3 +238,41 @@ export function useCarActions() {
     deleteModel: (modelId: number) => api<{ data: CarMake }>(`/car-models/${modelId}`, { method: 'DELETE' }).then(unwrap).then(put),
   }
 }
+
+/** Požiadavky from invited clients; polled so a new one shows up in the sidebar without a reload. */
+export function useServiceRequests() {
+  return useQuery({ queryKey: keys.requests, queryFn: () => api<{ data: ServiceRequest[] }>('/requests').then(unwrap), refetchInterval: 60_000 })
+}
+
+/** Invite links and the people who registered through them. */
+export function useInvites() {
+  return useQuery({ queryKey: keys.invites, queryFn: () => api<{ invites: ClientInvite[]; clients: PortalAccount[] }>('/invites') })
+}
+
+export function useRequestActions() {
+  const qc = useQueryClient()
+  const put = (r: ServiceRequest) => {
+    qc.setQueryData<ServiceRequest[]>(keys.requests, list => list?.map(x => (x.id === r.id ? r : x)))
+    return r
+  }
+  const refreshInvites = () => qc.invalidateQueries({ queryKey: keys.invites })
+  return {
+    /** Makes the work order; resolves to its id. */
+    accept: async (id: number) => {
+      const res = await api<{ order_id: number; data: ServiceRequest }>(`/requests/${id}/accept`, { method: 'POST' })
+      put(res.data)
+      void qc.invalidateQueries({ queryKey: keys.orders })
+      return res.order_id
+    },
+    reject: (id: number, reason: string | null) => api<{ data: ServiceRequest }>(`/requests/${id}/reject`, { method: 'POST', json: { reason } }).then(unwrap).then(put),
+    /** The plain token comes back only here; the link is built from it once. */
+    createInvite: async (note: string | null) => {
+      const res = await api<{ invite: ClientInvite; token: string }>('/invites', { method: 'POST', json: { note } })
+      void refreshInvites()
+      return res
+    },
+    revokeInvite: async (id: number) => { await api(`/invites/${id}`, { method: 'DELETE' }); await refreshInvites() },
+    setClientActive: async (id: number, is_active: boolean) => { await api(`/clients/${id}`, { method: 'PATCH', json: { is_active } }); await refreshInvites() },
+  }
+}
+

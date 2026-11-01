@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router'
-import { BarChart3, CalendarDays, FileText, LayoutGrid, ListChecks, LogOut, Settings, Smartphone, Users, Wrench } from 'lucide-react'
+import { BarChart3, CalendarDays, FileText, Inbox, LayoutGrid, ListChecks, LogOut, Settings, Smartphone, Users, Wrench } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
-import { useOrders, useSettings, useUsers } from '../data/queries'
+import { useOrders, useServiceRequests, useSettings, useUsers } from '../data/queries'
 import { firstName } from '../lib/calc'
 
 /** Desktop shell for the owner: sidebar + page. */
@@ -10,7 +10,9 @@ export default function AdminLayout() {
   const settings = useSettings()
   const users = useUsers()
   const orders = useOrders()
+  const requests = useServiceRequests()
   const list = orders.data ?? []
+  const waiting = (requests.data ?? []).filter(r => r.status === 'new').length
   const brand = settings.data?.business.name ?? 'Dielňa'
 
   return (
@@ -20,6 +22,9 @@ export default function AdminLayout() {
         <nav className="dash-nav" aria-label="Sekcie">
           <NavLink to="/admin" end><LayoutGrid size={16} strokeWidth={1.5} />Prehľad</NavLink>
           <NavLink to="/admin/zakazky"><Wrench size={16} strokeWidth={1.5} />Zákazky</NavLink>
+          <NavLink to="/admin/poziadavky"><Inbox size={16} strokeWidth={1.5} />Požiadavky
+            {waiting > 0 && <span className="nav-count" aria-label={`${waiting} nové`}>{waiting}</span>}
+          </NavLink>
           <NavLink to="/admin/kalendar"><CalendarDays size={16} strokeWidth={1.5} />Kalendár</NavLink>
           <NavLink to="/admin/reporty"><FileText size={16} strokeWidth={1.5} />Reporty</NavLink>
           <NavLink to="/admin/statistika"><BarChart3 size={16} strokeWidth={1.5} />Štatistika</NavLink>

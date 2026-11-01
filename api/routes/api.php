@@ -2,13 +2,18 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CarMakeController;
+use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientInviteController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DiagnosticController;
 use App\Http\Controllers\Api\OperationController;
 use App\Http\Controllers\Api\OrderOperationController;
 use App\Http\Controllers\Api\PartController;
 use App\Http\Controllers\Api\PhotoController;
+use App\Http\Controllers\Api\Portal\PortalAuthController;
+use App\Http\Controllers\Api\Portal\PortalRequestController;
 use App\Http\Controllers\Api\PublicReportController;
+use App\Http\Controllers\Api\ServiceRequestController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\TimerController;
@@ -22,7 +27,23 @@ Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::get('public/reports/{token}', [PublicReportController::class, 'show'])->middleware('throttle:60,1');
 
-    Route::middleware('auth:sanctum')->group(function (): void {
+    // Klientský portál: invited people send requests. Their tokens open these routes and nothing else.
+    Route::prefix('portal')->group(function (): void {
+        Route::get('invites/{token}', [PortalAuthController::class, 'invite'])->middleware('throttle:30,1');
+        Route::post('register', [PortalAuthController::class, 'register'])->middleware('throttle:login');
+        Route::post('login', [PortalAuthController::class, 'login'])->middleware('throttle:login');
+
+        Route::middleware(['auth:sanctum', 'client'])->group(function (): void {
+            Route::post('logout', [PortalAuthController::class, 'logout']);
+            Route::get('me', [PortalAuthController::class, 'me']);
+            Route::get('requests', [PortalRequestController::class, 'index']);
+            Route::post('requests', [PortalRequestController::class, 'store'])->middleware('throttle:20,1');
+            Route::delete('requests/{serviceRequest}', [PortalRequestController::class, 'destroy']);
+        });
+    });
+
+    // The shop: staff accounts only (a portal token is refused by `staff`).
+    Route::middleware(['auth:sanctum', 'staff'])->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::patch('auth/password', [AuthController::class, 'changePassword']);
@@ -45,6 +66,7 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('work-entries/{entry}', [WorkEntryController::class, 'destroy']);
 
         Route::post('orders/{order}/parts', [PartController::class, 'store']);
+        Route::post('orders/{order}/parts/batch', [PartController::class, 'storeMany']);
         Route::patch('parts/{part}', [PartController::class, 'update']);
         Route::delete('parts/{part}', [PartController::class, 'destroy']);
 
@@ -84,5 +106,13 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('dashboard', [DashboardController::class, 'show']);
         Route::get('stats', [StatsController::class, 'show']);
+
+        Route::get('requests', [ServiceRequestController::class, 'index']);
+        Route::post('requests/{serviceRequest}/accept', [ServiceRequestController::class, 'accept']);
+        Route::post('requests/{serviceRequest}/reject', [ServiceRequestController::class, 'reject']);
+        Route::get('invites', [ClientInviteController::class, 'index']);
+        Route::post('invites', [ClientInviteController::class, 'store']);
+        Route::delete('invites/{invite}', [ClientInviteController::class, 'destroy']);
+        Route::patch('clients/{client}', [ClientController::class, 'update']);
     });
 });

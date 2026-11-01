@@ -31,8 +31,9 @@ class StatsController extends Controller
         for ($i = 1; $i < ($current->kind === 'year' ? 5 : 12); $i++) {
             array_unshift($periods, $periods[0]->previous());
         }
-        $orders = Earnings::closedBetween($periods[0]->start, $current->end);
-        $within = fn (StatsPeriod $p) => $orders->filter(fn (WorkOrder $o) => $p->contains($o->closed_at));
+        // Zárobok is money in hand, so an order belongs to the period it was paid in.
+        $orders = Earnings::paidBetween($periods[0]->start, $current->end);
+        $within = fn (StatsPeriod $p) => $orders->filter(fn (WorkOrder $o) => $p->contains($o->paid_at));
 
         $previous = $current->previous();
         $yearEarlier = $current->kind === 'year' ? null : $current->yearEarlier();
@@ -45,9 +46,11 @@ class StatsController extends Controller
             'previous_date' => $previous->start->toDateString(),
             'next_date' => $current->end->lt($now) ? $current->next()->start->toDateString() : null,
             'current' => Earnings::of($within($current), $rate, $now),
+            // Closed in the period but not paid yet: it moves into zárobok of the period it gets paid in.
+            'pending' => Earnings::of(Earnings::unpaidClosedBetween($current->start, $current->end), $rate, $now),
             'previous' => ['label' => $previous->label()] + Earnings::of($within($previous), $rate, $now),
             'year_earlier' => $yearEarlier
-                ? ['label' => $yearEarlier->label()] + Earnings::of(Earnings::closedBetween($yearEarlier->start, $yearEarlier->end), $rate, $now)
+                ? ['label' => $yearEarlier->label()] + Earnings::of(Earnings::paidBetween($yearEarlier->start, $yearEarlier->end), $rate, $now)
                 : null,
             'trend' => array_map(fn (StatsPeriod $p) => [
                 'label' => $p->short(),

@@ -13,6 +13,7 @@ use App\Services\Settings;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 /** Prehľad: zárobok, billing, hours and workload for a week, month or year. */
 class DashboardController extends Controller
@@ -35,7 +36,8 @@ class DashboardController extends Controller
             ->where('started_at', '<=', $end)
             ->get();
 
-        // Money counts on the day an order is closed, so billing, parts and zárobok always describe the same orders.
+        // Zárobok is money in hand: it counts on the day the customer paid. Fakturované counts on the day the order was closed.
+        $paid = Earnings::paidBetween($start, $end);
         $closed = Earnings::closedBetween($start, $end);
 
         $unpaid = WorkOrder::query()->withEverything()->where('status', OrderStatus::Unpaid->value)->get();
@@ -52,8 +54,8 @@ class DashboardController extends Controller
             $orders[$e->work_order_id] = true;
         }
 
-        foreach ($closed as $o) {
-            $i = $bucketOf(CarbonImmutable::instance($o->closed_at));
+        foreach ($paid as $o) {
+            $i = $bucketOf(CarbonImmutable::instance($o->paid_at));
             if (isset($bars[$i])) {
                 $line = Earnings::line($o, $rate, $now);
                 $bars[$i]['earnings'] += $line['earnings'];
@@ -61,12 +63,12 @@ class DashboardController extends Controller
             }
         }
 
-        $money = Earnings::of($closed, $rate, $now);
+        $money = Earnings::of($paid, $rate, $now);
+        $billed = Earnings::of($closed, $rate, $now);
+        $pending = Earnings::of($closed->where('status', OrderStatus::Unpaid), $rate, $now);
         $withNorms = $closed->filter(fn (WorkOrder $o) => $o->operations->isNotEmpty());
         $normSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => (int) $o->operations->sum('norm_minutes') * 60);
         $actualSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['seconds']);
-        $paid = $closed->where('status', OrderStatus::Done);
-        $paidSum = $paid->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['grand']);
         $due = $unpaid->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['grand']);
 
         $mechanics = User::query()->where('is_active', true)->orderBy('name')->get()
@@ -81,15 +83,19 @@ class DashboardController extends Controller
             'rate' => $rate,
             'kpi' => [
                 'earnings' => $money['earnings'],
-                'billed' => $money['billed'],
                 'labor' => $money['labor'],
                 'parts_cost' => $money['parts_cost'],
                 'parts_margin' => $money['parts_margin'],
                 'discount' => $money['discount'],
                 'orders' => $money['orders'],
+                // Closed in the period, money not in yet: becomes zárobok on the day it is paid.
+                'pending' => Arr::only($pending, ['labor', 'parts_margin', 'earnings', 'orders']),
+                'billed' => $billed['billed'],
+                'billed_parts_cost' => $billed['parts_cost'],
+                'billed_orders' => $billed['orders'],
                 'hours' => round($hours, 1),
-                'paid' => round($paidSum, 2),
-                'paid_count' => $paid->count(),
+                'paid' => $money['billed'],
+                'paid_count' => $money['orders'],
                 'due' => round($due, 2),
                 'due_count' => $unpaid->count(),
                 'norm_hours' => round($normSeconds / 3600, 1),

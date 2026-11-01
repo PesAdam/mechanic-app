@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { Check, FileText, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react'
+import { Check, FileText, Pause, Pencil, Play, Plus, ScanText, Trash2 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { defaultStartOp, entrySeconds, firstName, isClosed, isPaid, isRunning, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
+import { defaultStartOp, entrySeconds, firstName, isClosed, isPaid, isRunning, newPhotos, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, hoursSk, km, localToIso, shortVin, skDate, timeOf } from '../lib/format'
 import { publicReportUrl } from '../lib/share'
-import type { CodeStatus, Order, Part, PhotoStage, WorkEntry } from '../lib/types'
+import type { CodeStatus, Order, Part, WorkEntry } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
 import StatusTag from '../components/StatusTag'
@@ -22,8 +22,8 @@ import ShareReport from '../components/ShareReport'
 import TotalEdit from '../components/TotalEdit'
 import MakeLogo from '../components/MakeLogo'
 import { AddCodeDialog, AddPartDialog, EditCarDialog, ManualTimeDialog } from '../components/JobDialogs'
+import ScanPartsDialog from '../components/ScanPartsDialog'
 
-const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
 const CODE_TAG: Record<CodeStatus, [string, string]> = { fixed: ['Odstránené', 'tag-accent'], watch: ['Sledovať', 'tag-neutral'], open: ['Otvorené', 'tag-outline'] }
 
 /** Desktop detail of an order: time, parts, photos, diagnostics and the sums side by side. */
@@ -40,6 +40,7 @@ export default function OrderDetail() {
   const now = useNow(!!order && isRunning(order))
   const [manualOpen, setManualOpen] = useState(false)
   const [partOpen, setPartOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
   const [editPart, setEditPart] = useState<Part | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
@@ -62,13 +63,9 @@ export default function OrderDetail() {
   const codes = order.diagnostic?.codes ?? []
   const samePlan = (iso: string | null) => (iso === null ? order.planned_at === null : order.planned_at !== null && Date.parse(iso) === Date.parse(order.planned_at))
 
-  const addPhotos = (blobs: Blob[]) => {
-    const stage: PhotoStage = closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred'
-    const n = order.photos.filter(p => p.stage === stage).length + 1
-    void act.run(async () => {
-      for (const [i, blob] of blobs.entries()) await actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n + i}`, stage })
-    })
-  }
+  const addPhotos = (blobs: Blob[]) => void act.run(async () => {
+    for (const photo of newPhotos(order, blobs)) await actions.uploadPhoto(order.id, photo)
+  })
 
   return (
     <div className="admin-page">
@@ -126,7 +123,12 @@ export default function OrderDetail() {
               {order.parts.map(p => <PartRow key={p.id} part={p} mode={order.parts_pricing} disabled={locked || act.busy} onToggle={() => void act.run(() => actions.updatePart(p.id, { used: !p.used }))} onEdit={() => setEditPart(p)} />)}
               {!order.parts.length && <div className="muted" style={{ fontSize: 13 }}>Zatiaľ bez dielov.</div>}
             </div>
-            {!locked && <button className="btn btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setPartOpen(true)}>+ Pridať diel</button>}
+            {!locked && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-ghost" onClick={() => setPartOpen(true)}>+ Pridať diel</button>
+                <button className="btn btn-ghost" onClick={() => setScanOpen(true)}><ScanText size={16} strokeWidth={1.5} /> Zo screenshotu</button>
+              </div>
+            )}
           </Blueprint>
         </div>
 
@@ -259,6 +261,7 @@ export default function OrderDetail() {
 
       <ManualTimeDialog open={manualOpen} onClose={() => setManualOpen(false)} orderId={order.id} operations={order.operations} />
       <AddPartDialog open={partOpen} onClose={() => setPartOpen(false)} orderId={order.id} />
+      <ScanPartsDialog open={scanOpen} onClose={() => setScanOpen(false)} orderId={order.id} />
       <AddPartDialog open={!!editPart} onClose={() => setEditPart(null)} orderId={order.id} part={editPart ?? undefined} />
       {closeOpen && <CloseOrderDialog order={order} rate={rate} now={now} billing={settings.data?.labor_billing} open onClose={() => setCloseOpen(false)} />}
       <AddCodeDialog open={codeOpen} onClose={() => setCodeOpen(false)} orderId={order.id} />

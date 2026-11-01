@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureClient;
+use App\Http\Middleware\EnsureStaff;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,7 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Caddy / a load balancer terminates TLS in front of the container.
         $middleware->trustProxies(at: '*');
-        //
+        $middleware->alias([
+            'staff' => EnsureStaff::class,
+            'client' => EnsureClient::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

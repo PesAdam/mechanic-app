@@ -1,4 +1,4 @@
-import type { LaborBilling, Order, OrderOperation, Part, PartsPricing, WorkEntry } from './types'
+import type { LaborBilling, Order, OrderOperation, Part, PartsPricing, PhotoStage, WorkEntry } from './types'
 import { dateOf, isoDate } from './format'
 
 export const entrySeconds = (e: WorkEntry, now: number): number =>
@@ -11,6 +11,15 @@ export const isRunning = (o: Order): boolean => o.work_entries.some(e => !e.ende
 export const isClosed = (o: Order): boolean => o.status === 'unpaid' || o.status === 'done'
 /** Paid is final; a closed order waiting for payment can still be corrected. */
 export const isPaid = (o: Order): boolean => o.status === 'done'
+
+const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
+
+/** Photos added together, labelled by when they were taken (before the work, during it, after closing) and numbered on: "Po 3", "Po 4"… */
+export const newPhotos = (o: Order, blobs: Blob[]): { blob: Blob; label: string; stage: PhotoStage }[] => {
+  const stage: PhotoStage = isClosed(o) ? 'po' : o.work_entries.length ? 'pocas' : 'pred'
+  const n = o.photos.filter(p => p.stage === stage).length + 1
+  return blobs.map((blob, i) => ({ blob, label: `${STAGE_LABEL[stage]} ${n + i}`, stage }))
+}
 
 export const totalSeconds = (o: Order, now: number): number => o.work_entries.reduce((a, e) => a + entrySeconds(e, now), 0)
 

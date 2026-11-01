@@ -9,12 +9,16 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
- * Money of closed orders, counted on the day they were closed (invoiced):
- * what was billed, what their parts cost the shop, and what stays with it (zárobok).
+ * Money of orders: what was billed, what their parts cost the shop, and what stays with it (zárobok).
+ * Zárobok is money in hand, so it is counted on the day the customer paid; billing on the day the order was closed.
  */
 final class Earnings
 {
-    /** @return Collection<int, WorkOrder> */
+    /**
+     * Orders closed (invoiced) in the range, paid or not.
+     *
+     * @return Collection<int, WorkOrder>
+     */
     public static function closedBetween(CarbonInterface $start, CarbonInterface $end): Collection
     {
         return WorkOrder::query()->withEverything()
@@ -24,6 +28,31 @@ final class Earnings
             ->where('closed_at', '<=', $end)
             ->orderBy('closed_at')
             ->get();
+    }
+
+    /**
+     * Orders paid in the range: the ones zárobok is made of.
+     *
+     * @return Collection<int, WorkOrder>
+     */
+    public static function paidBetween(CarbonInterface $start, CarbonInterface $end): Collection
+    {
+        return WorkOrder::query()->withEverything()
+            ->where('status', OrderStatus::Done->value)
+            ->where('paid_at', '>=', $start)
+            ->where('paid_at', '<=', $end)
+            ->orderBy('paid_at')
+            ->get();
+    }
+
+    /**
+     * Orders closed in the range that still wait for the money ("čaká na platbu").
+     *
+     * @return Collection<int, WorkOrder>
+     */
+    public static function unpaidClosedBetween(CarbonInterface $start, CarbonInterface $end): Collection
+    {
+        return self::closedBetween($start, $end)->where('status', OrderStatus::Unpaid)->values();
     }
 
     /**
@@ -66,9 +95,9 @@ final class Earnings
     }
 
     /**
-     * One line per closed order, for the statistics table and the CSV export.
+     * One line per paid order, for the statistics table and the CSV export.
      *
-     * @return array{id: int, number: string, closed_at: string|null, status: string, car: string, plate: string|null, customer: string|null, hours: float, labor: float, parts_billed: float, parts_cost: float, discount: float, billed: float, earnings: float}
+     * @return array{id: int, number: string, closed_at: string|null, paid_at: string|null, status: string, car: string, plate: string|null, customer: string|null, hours: float, labor: float, parts_billed: float, parts_cost: float, discount: float, billed: float, earnings: float}
      */
     public static function line(WorkOrder $order, float $rate, ?CarbonInterface $now = null): array
     {
@@ -78,6 +107,7 @@ final class Earnings
             'id' => $order->id,
             'number' => $order->number,
             'closed_at' => $order->closed_at?->toIso8601String(),
+            'paid_at' => $order->paid_at?->toIso8601String(),
             'status' => $order->status->value,
             'car' => trim(implode(' ', array_filter([$order->car?->make, $order->car?->model, $order->car?->engine]))),
             'plate' => $order->car?->plate,

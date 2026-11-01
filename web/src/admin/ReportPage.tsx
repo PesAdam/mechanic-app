@@ -4,7 +4,7 @@ import { Check, ChevronLeft, Copy, Printer } from 'lucide-react'
 import { useOrder, useOrderActions, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { isRunning } from '../lib/calc'
+import { isPaid, isRunning, newPhotos } from '../lib/calc'
 import { copyText, publicReportUrl } from '../lib/share'
 import Blueprint, { Corners } from '../components/Blueprint'
 import ReportView from '../screens/ReportView'
@@ -16,6 +16,7 @@ export default function ReportPage() {
   const settings = useSettings()
   const actions = useOrderActions()
   const act = useAction()
+  const photoAct = useAction()
   const order = q.data
   const now = useNow(!!order && isRunning(order))
   const [copied, setCopied] = useState(false)
@@ -27,8 +28,13 @@ export default function ReportPage() {
   const copy = async () => { if (await copyText(publicReportUrl(order.public_token))) { setCopied(true); setTimeout(() => setCopied(false), 2000) } }
 
   return (
-    <ReportView order={order} settings={settings.data} now={now} tools={<>
+    <ReportView order={order} settings={settings.data} now={now} photosBusy={photoAct.busy}
+      onAddPhotos={isPaid(order) ? undefined : blobs => void photoAct.run(async () => {
+        for (const photo of newPhotos(order, blobs)) await actions.uploadPhoto(order.id, photo)
+      })}
+      tools={<>
       <Link to="/admin/reporty" className="btn btn-secondary"><ChevronLeft size={16} strokeWidth={1.5} />Reporty</Link>
+      {(act.error || photoAct.error) && <span className="form-error" role="alert">{act.error ?? photoAct.error}</span>}
       <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
         {order.status === 'unpaid' && <button className="btn btn-secondary" disabled={act.busy} onClick={() => void act.run(() => actions.updateOrder(order.id, { status: 'done' }))}><Check size={16} strokeWidth={1.5} />Označiť ako uhradené</button>}
         <button className="btn btn-secondary" onClick={() => void copy()}><Copy size={16} strokeWidth={1.5} />{copied ? 'Skopírované ✓' : 'Kopírovať odkaz'}</button>

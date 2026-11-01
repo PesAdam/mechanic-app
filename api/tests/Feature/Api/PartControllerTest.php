@@ -92,4 +92,47 @@ class PartControllerTest extends TestCase
             ->assertJsonPath('data.total_original', 130);
         $this->deleteJson("/api/v1/parts/{$part->id}")->assertOk()->assertJsonPath('data.total_original', 10);
     }
+
+    public function test_parts_read_off_a_screenshot_are_added_in_one_go(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->open()->create();
+
+        $response = $this->postJson("/api/v1/orders/{$order->id}/parts/batch", ['parts' => [
+            ['name' => 'Sada brzdových platničiek kotúčovej brzdy', 'meta' => 'GDB3515', 'price' => 41.28],
+            ['name' => 'Brzdová kvapalina TRW DOT4 1L', 'meta' => '2 ks · PFB401', 'price' => 15.77, 'purchase_price' => 12.82],
+        ]]);
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'data.parts')
+            ->assertJsonPath('data.totals.parts', 57.05)
+            ->assertJsonPath('data.totals.parts_cost', 54.1);
+        $this->assertDatabaseHas('parts', ['work_order_id' => $order->id, 'name' => 'Brzdová kvapalina TRW DOT4 1L', 'meta' => '2 ks · PFB401', 'used' => true]);
+    }
+
+    public function test_one_invalid_scanned_part_adds_none_of_them(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $order = WorkOrder::factory()->open()->create();
+
+        $this->postJson("/api/v1/orders/{$order->id}/parts/batch", ['parts' => [
+            ['name' => 'Olejový filter', 'price' => 8.9],
+            ['name' => '', 'price' => 12.5],
+        ]])->assertUnprocessable()->assertJsonValidationErrors('parts.1.name');
+
+        $this->postJson("/api/v1/orders/{$order->id}/parts/batch", ['parts' => []])->assertUnprocessable();
+        $this->assertDatabaseCount('parts', 0);
+    }
+
+    public function test_scanned_parts_on_a_paid_order_move_the_original_total_like_a_single_part(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $paid = WorkOrder::factory()->paid()->create(['total_override' => 90, 'total_original' => 100]);
+        Part::factory()->for($paid)->create(['price' => 100]);
+
+        $this->postJson("/api/v1/orders/{$paid->id}/parts/batch", ['parts' => [['name' => 'Čistič bŕzd', 'price' => 6], ['name' => 'Olej', 'price' => 4]]])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'done')
+            ->assertJsonPath('data.total_original', 110);
+    }
 }

@@ -15,11 +15,11 @@ class StatsControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    /** A closed order with 2 h of work at 25 €/h and one part bought for 30 € and billed at 45 € (MOC). */
-    private function closedOrder(string $closedAt, array $attributes = []): WorkOrder
+    /** An order closed and paid on the same day, with 2 h of work at 25 €/h and one part bought for 30 € and billed at 45 € (MOC). */
+    private function paidOrder(string $paidAt, array $attributes = []): WorkOrder
     {
-        $order = WorkOrder::factory()->create(['status' => 'done', 'closed_at' => $closedAt] + $attributes);
-        WorkEntry::factory()->for($order)->create(['started_at' => "$closedAt -2 hours", 'ended_at' => $closedAt]);
+        $order = WorkOrder::factory()->create($attributes + ['status' => 'done', 'closed_at' => $paidAt, 'paid_at' => $paidAt]);
+        WorkEntry::factory()->for($order)->create(['started_at' => "$paidAt -2 hours", 'ended_at' => $paidAt]);
         Part::factory()->for($order)->create(['price' => 45, 'purchase_price' => 30]);
 
         return $order;
@@ -30,10 +30,10 @@ class StatsControllerTest extends TestCase
         $this->travelTo('2026-10-24 12:00:00');
         Setting::set('hourly_rate', 25);
         Sanctum::actingAs(User::factory()->create());
-        $this->closedOrder('2026-10-05 16:00:00');
-        $this->closedOrder('2026-10-20 16:00:00', ['total_override' => 85, 'total_original' => 95]);
-        $this->closedOrder('2026-09-10 16:00:00');
-        $this->closedOrder('2025-10-15 16:00:00');
+        $this->paidOrder('2026-10-05 16:00:00');
+        $this->paidOrder('2026-10-20 16:00:00', ['total_override' => 85, 'total_original' => 95]);
+        $this->paidOrder('2026-09-10 16:00:00');
+        $this->paidOrder('2025-10-15 16:00:00');
         WorkOrder::factory()->open()->create();
 
         $response = $this->getJson('/api/v1/stats?period=month&date=2026-10-24');
@@ -63,7 +63,31 @@ class StatsControllerTest extends TestCase
             ->assertJsonPath('trend.0.date', '2025-11-01')
             ->assertJsonCount(2, 'orders')
             ->assertJsonPath('orders.1.billed', 85)
-            ->assertJsonPath('orders.1.earnings', 55);
+            ->assertJsonPath('orders.1.earnings', 55)
+            ->assertJsonPath('pending.orders', 0);
+    }
+
+    public function test_an_order_counts_in_the_month_it_was_paid_and_waits_in_the_month_it_was_closed_until_then(): void
+    {
+        $this->travelTo('2026-10-24 12:00:00');
+        Setting::set('hourly_rate', 25);
+        Sanctum::actingAs(User::factory()->create());
+        $this->paidOrder('2026-09-28 16:00:00', ['paid_at' => '2026-10-02 09:00:00']);
+        $this->paidOrder('2026-10-22 16:00:00', ['status' => 'unpaid']);
+
+        $this->getJson('/api/v1/stats?period=month&date=2026-10-24')
+            ->assertOk()
+            ->assertJsonPath('current.orders', 1)
+            ->assertJsonPath('current.earnings', 65)
+            ->assertJsonPath('orders.0.paid_at', '2026-10-02T09:00:00+02:00')
+            ->assertJsonPath('pending.orders', 1)
+            ->assertJsonPath('pending.labor', 50)
+            ->assertJsonPath('pending.earnings', 65);
+
+        $this->getJson('/api/v1/stats?period=month&date=2026-09-15')
+            ->assertOk()
+            ->assertJsonPath('current.orders', 0)
+            ->assertJsonPath('pending.orders', 0);
     }
 
     public function test_weeks_compare_with_the_same_iso_week_a_year_earlier_and_can_be_paged(): void

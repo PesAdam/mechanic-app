@@ -87,6 +87,8 @@ export interface Order {
   planned_at: string | null
   planned_minutes: number | null
   closed_at: string | null
+  /** When it was marked Uhradená; zárobok counts on this day. */
+  paid_at: string | null
   public_token: string
   customer: Customer
   car: Car
@@ -120,22 +122,32 @@ export interface DashboardData {
   period: Period
   label: string
   rate: number
-  /** Money is of the orders closed in the period; `hours` is the time clocked in it. */
-  kpi: { earnings: number; billed: number; labor: number; parts_cost: number; parts_margin: number; discount: number; orders: number; hours: number; paid: number; paid_count: number; due: number; due_count: number; norm_hours: number; efficiency: number | null }
-  /** By the day orders were closed: zárobok and what their parts cost. */
+  /**
+   * Zárobok (earnings … orders, paid) is of the orders paid in the period; `pending` of the ones closed in it and not paid yet;
+   * `billed*` of all orders closed in it. `hours` is the time clocked in the period.
+   */
+  kpi: {
+    earnings: number; labor: number; parts_cost: number; parts_margin: number; discount: number; orders: number; pending: Pending
+    billed: number; billed_parts_cost: number; billed_orders: number
+    hours: number; paid: number; paid_count: number; due: number; due_count: number; norm_hours: number; efficiency: number | null
+  }
+  /** By the day orders were paid: zárobok and what their parts cost. */
   bars: { label: string; earnings: number; parts: number }[]
   mechanics: { id: number; name: string; hours: number }[]
   avg_hours_per_order: number
 }
 
-/** Money of the orders closed in a period. Zárobok = billed − parts at purchase price = labor + parts margin − zľavy. */
+/** Money of the orders paid in a period. Zárobok = billed − parts at purchase price = labor + parts margin − zľavy. */
 export interface Earnings {
   orders: number; billed: number; labor: number; parts_billed: number; parts_cost: number; parts_margin: number; discount: number
   earnings: number; hours: number; per_hour: number | null
 }
 
+/** Zárobok of orders closed but not paid yet ("čaká na platbu"): it counts once the money comes in. */
+export type Pending = Pick<Earnings, 'orders' | 'labor' | 'parts_margin' | 'earnings'>
+
 export interface EarningsLine {
-  id: number; number: string; closed_at: string | null; status: OrderStatus; car: string; plate: string | null; customer: string | null
+  id: number; number: string; closed_at: string | null; paid_at: string | null; status: OrderStatus; car: string; plate: string | null; customer: string | null
   hours: number; labor: number; parts_billed: number; parts_cost: number; discount: number; billed: number; earnings: number
 }
 
@@ -149,6 +161,7 @@ export interface StatsData {
   /** null when the period is the current one (nothing to page forward to). */
   next_date: string | null
   current: Earnings
+  pending: Earnings
   previous: Earnings & { label: string }
   year_earlier: (Earnings & { label: string }) | null
   trend: (Earnings & { label: string; title: string; date: string })[]
@@ -180,3 +193,39 @@ export interface VinInfo {
   models: { name: string; car_model_id: number | null; years: string | null }[]
 }
 export interface VehicleLookup { matches: VehicleMatch[]; vin: VinInfo | null }
+
+/** How a client reaches the shop; the portal gets nothing else from the settings. */
+export interface Shop { name: string; phone: string; email: string; street: string; city: string }
+
+/** Portal: a signed-in invited client. */
+export interface PortalClient { id: number; name: string; email: string; phone: string; shop: Shop }
+
+/** Portal: how far a request got, as its sender sees it. */
+export type RequestPhase = 'sent' | 'accepted' | 'in_progress' | 'done' | 'rejected'
+
+interface RequestCar { plate: string; make: string; model: string; engine: string | null; vin: string | null; km: number | null }
+
+/** Portal: one of the client's own requests. Of the shop's order only the number, the planned day and the report link. */
+export interface PortalRequest extends RequestCar {
+  id: number; description: string; preferred_date: string | null; photos: string[]; created_at: string
+  phase: RequestPhase; reject_reason: string | null
+  order: { number: string; planned_at: string | null; report_token: string | null } | null
+}
+
+export type RequestStatus = 'new' | 'accepted' | 'rejected'
+
+/** Požiadavky: what an invited client sent, as the shop sees it. */
+export interface ServiceRequest extends RequestCar {
+  id: number; client: { id: number; name: string; phone: string; email: string }
+  description: string; preferred_date: string | null; photos: string[]
+  status: RequestStatus; reject_reason: string | null; created_at: string; handled_at: string | null
+  order: { id: number; number: string; status: OrderStatus } | null
+}
+
+export interface ClientInvite {
+  id: number; note: string | null; state: 'open' | 'used' | 'revoked' | 'expired'; expires_at: string; created_at: string
+  client: { id: number; name: string } | null
+}
+
+/** Someone registered through an invite. */
+export interface PortalAccount { id: number; name: string; email: string; phone: string; is_active: boolean; requests_count: number; created_at: string }

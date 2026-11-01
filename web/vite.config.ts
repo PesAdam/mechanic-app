@@ -1,8 +1,37 @@
-import { defineConfig, loadEnv } from 'vite'
+import { createReadStream, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const YEAR = 60 * 60 * 24 * 365
+
+/** OCR for "Diely zo screenshotu" (src/lib/ocr.ts): engine, worker and Slovak model, served at /tesseract/ out of node_modules. */
+const TESSERACT: Record<string, string> = {
+  'worker.min.js': 'tesseract.js/dist/worker.min.js',
+  'core/tesseract-core-lstm.wasm.js': 'tesseract.js-core/tesseract-core-lstm.wasm.js',
+  'core/tesseract-core-simd-lstm.wasm.js': 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
+  'core/tesseract-core-relaxedsimd-lstm.wasm.js': 'tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js',
+  'lang/slk.traineddata.gz': '@tesseract.js-data/slk/4.0.0_best_int/slk.traineddata.gz',
+}
+const fromModules = (path: string) => fileURLToPath(new URL(`./node_modules/${path}`, import.meta.url))
+
+function tesseractAssets(): Plugin {
+  return {
+    name: 'tesseract-assets',
+    configureServer(server) {
+      server.middlewares.use('/tesseract', (req, res, next) => {
+        const src = TESSERACT[(req.url ?? '').replace(/^\//, '').split('?')[0]]
+        if (!src) return next()
+        res.setHeader('Content-Type', src.endsWith('.js') ? 'text/javascript' : 'application/octet-stream')
+        createReadStream(fromModules(src)).pipe(res)
+      })
+    },
+    generateBundle() {
+      for (const [path, src] of Object.entries(TESSERACT)) this.emitFile({ type: 'asset', fileName: `tesseract/${path}`, source: readFileSync(fromModules(src)) })
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
@@ -11,6 +40,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      tesseractAssets(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'favicon.svg', 'icon.svg', 'apple-touch-icon-180x180.png'],
@@ -39,6 +69,8 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+          // The OCR engine (several MB) is fetched on the first scan, not with every install of the app.
+          globIgnores: ['tesseract/**'],
           navigateFallback: '/index.html',
           // API and uploaded files are never the SPA shell.
           navigateFallbackDenylist: [/^\/api\//, /^\/storage\//],

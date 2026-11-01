@@ -7,12 +7,13 @@ import { eur, hm, hoursSk, planLabel } from '../lib/format'
 import { plural } from '../lib/text'
 import type { Period } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
+import EarningsSplit from '../components/EarningsSplit'
 import StatusTag from '../components/StatusTag'
 import NewJobDialog from '../components/NewJobDialog'
 
 const PERIODS: [Period, string][] = [['week', 'Týždeň'], ['month', 'Mesiac'], ['year', 'Rok']]
 
-/** 1d · Prehľad — zárobok (billed minus what the parts cost), hours, payments and the open orders. */
+/** 1d · Prehľad — zárobok of the orders paid (billed minus what the parts cost), hours, payments and the open orders. */
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('week')
   const dash = useDashboard(period)
@@ -48,11 +49,11 @@ export default function Dashboard() {
 
       {dash.isError && !d && <Blueprint style={{ padding: 14 }}><div style={{ fontSize: 13 }}>Prehľad sa nepodarilo načítať. <button className="btn btn-ghost" onClick={() => void dash.refetch()}>Skúsiť znova</button></div></Blueprint>}
 
-      <div className="kpi-grid">
-        <Kpi k="Zárobok · bez dielov" v={d ? eur(d.kpi.earnings) : '…'} accent
-          m={d ? `práca ${eur(d.kpi.labor)} + marža na dieloch ${eur(d.kpi.parts_margin)}${d.kpi.discount ? ` − zľavy ${eur(d.kpi.discount)}` : ''}` : ''} />
+      <EarningsSplit money={d?.kpi} pending={d?.kpi.pending} />
+
+      <div className="kpi-grid kpi-grid-4">
         <Kpi k="Fakturované" v={d ? eur(d.kpi.billed) : '…'}
-          m={d ? (d.kpi.orders ? `z toho nákup dielov ${eur(d.kpi.parts_cost)} · ${d.kpi.orders} ${plural(d.kpi.orders, 'zákazka', 'zákazky', 'zákaziek')}` : 'zatiaľ bez uzavretých zákaziek') : ''} />
+          m={d ? (d.kpi.billed_orders ? `z toho nákup dielov ${eur(d.kpi.billed_parts_cost)} · ${d.kpi.billed_orders} ${plural(d.kpi.billed_orders, 'zákazka', 'zákazky', 'zákaziek')}` : 'zatiaľ bez uzavretých zákaziek') : ''} />
         <Kpi k="Hodiny pri autách" v={d ? hoursSk(d.kpi.hours) : '…'} m={d && d.kpi.efficiency === null ? 'bez noriem' : ''}
           extra={d && d.kpi.efficiency !== null ? <span className={d.kpi.efficiency >= 100 ? 'norm-ok' : 'norm-bad'}>efektivita {d.kpi.efficiency} % (norma {hoursSk(d.kpi.norm_hours)})</span> : null} />
         <Kpi k="Zaplatené" v={d ? eur(d.kpi.paid) : '…'} m={d ? `${d.kpi.paid_count} ${plural(d.kpi.paid_count, 'doklad uhradený', 'doklady uhradené', 'dokladov uhradených')}` : ''} />
@@ -62,7 +63,7 @@ export default function Dashboard() {
       <div className="dash-mid">
         <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-            <span className="card-title">Zárobok a diely</span><span className="card-meta">plná = zárobok · obrys = nákup dielov · podľa dňa uzavretia</span>
+            <span className="card-title">Zárobok a diely</span><span className="card-meta">plná = zárobok · obrys = nákup dielov · podľa dňa úhrady</span>
           </div>
           <div className="bars" role="img" aria-label="Zárobok a nákup dielov po obdobiach">
             {(d?.bars ?? []).map((b, i) => (
@@ -128,11 +129,11 @@ export default function Dashboard() {
   )
 }
 
-function Kpi({ k, v, m, accent, extra }: { k: string; v: string; m: string; accent?: boolean; extra?: ReactNode }) {
+function Kpi({ k, v, m, extra }: { k: string; v: string; m: string; extra?: ReactNode }) {
   return (
     <Blueprint className="card" style={{ padding: '14px 16px', gap: 4 }}>
       <span className="card-kicker">{k}</span>
-      <div className="kpi-v" style={accent ? { color: 'var(--color-accent-700)' } : undefined}>{v}</div>
+      <div className="kpi-v">{v}</div>
       <span className="card-meta">{m || '\u00a0'}{extra}</span>
     </Blueprint>
   )

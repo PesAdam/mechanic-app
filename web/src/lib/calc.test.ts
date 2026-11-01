@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { byPlan, carName, entrySeconds, isClosed, isRunning, normClass, opSeconds, partCost, partPrice, plannedMinutes, sessionSeconds, totalsOf, unassignedEntries } from './calc'
+import { byPlan, carName, entrySeconds, isClosed, isRunning, newPhotos, normClass, opSeconds, partCost, partPrice, plannedMinutes, sessionSeconds, totalsOf, unassignedEntries } from './calc'
 import type { Order, Part, WorkEntry } from './types'
 
 const NOW = Date.parse('2026-10-12T10:00:00.000Z')
@@ -10,7 +10,7 @@ const part = (over: Partial<Part>): Part => ({ id: 1, name: 'Diel', meta: null, 
 
 /** A bare order; tests override what they measure. */
 const order = (over: Partial<Order>): Order => ({
-  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, summary: 'Brzdy', lift: null, received_at: null, planned_at: null, planned_minutes: null, closed_at: null, public_token: 't',
+  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, summary: 'Brzdy', lift: null, received_at: null, planned_at: null, planned_minutes: null, closed_at: null, paid_at: null, public_token: 't',
   customer: { id: 1, name: 'Ján Kováč', phone: null, email: null },
   car: { id: 1, make: 'Škoda', model: 'Octavia III', engine: '2.0 TDI', car_make_id: 1, car_model_id: 1, car_engine_id: 1, logo_url: null, plate: 'ZA 412 KL', vin: null, km: 0 },
   mechanic: null, parts: [], photos: [], diagnostic: null, work_entries: [], operations: [],
@@ -132,5 +132,16 @@ describe('helpers', () => {
   it('names a car with or without engine', () => {
     expect(carName({ make: 'Škoda', model: 'Octavia III', engine: '2.0 TDI' })).toBe('Škoda Octavia III 2.0 TDI')
     expect(carName({ make: 'BMW', model: '3 (F30)', engine: null })).toBe('BMW 3 (F30)')
+  })
+})
+
+describe('newPhotos', () => {
+  const blobs = [new Blob(['a']), new Blob(['b'])]
+  const after = { id: 9, url: '/storage/po1.jpg', label: 'Po 1', stage: 'po' as const, taken_at: '2026-10-12T12:00:00.000Z' }
+
+  it('labels photos by when they were taken and numbers on from the photos already there', () => {
+    expect(newPhotos(order({}), blobs).map(p => p.label)).toEqual(['Pred 1', 'Pred 2'])
+    expect(newPhotos(order({ work_entries: [entry({})] }), blobs.slice(0, 1))).toEqual([{ blob: blobs[0], label: 'Počas 1', stage: 'pocas' }])
+    expect(newPhotos(order({ status: 'unpaid', photos: [after] }), blobs).map(p => [p.label, p.stage])).toEqual([['Po 2', 'po'], ['Po 3', 'po']])
   })
 })

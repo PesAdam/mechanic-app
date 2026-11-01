@@ -15,8 +15,11 @@ body { -webkit-font-smoothing: antialiased; }
 .dot.live { animation: pulse 1.4s infinite; }
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
 
-/* The dialog needs a ground to sit on over the backdrop. */
-.dialog { background: var(--color-bg); }
+/* The dialog needs a ground to sit on over the backdrop. The column never grows past the screen (a long
+   row of chips would otherwise widen it and push the dialog off a phone), and a dialog taller than the
+   screen scrolls from its top instead of being cut off at both ends. */
+.dialog-backdrop { grid-template-columns: minmax(0, 1fr); overflow-y: auto; overscroll-behavior: contain; }
+.dialog { background: var(--color-bg); margin: auto; }
 .dialog .field + .field { margin-top: 0; }
 .dialog form { display: flex; flex-direction: column; gap: 12px; }
 .dialog .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -123,12 +126,21 @@ select.input { appearance: none; }
 .dash-nav a[aria-current="page"] { color: var(--color-bg); background: var(--color-accent); }
 .dash-nav a:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .dash-nav .soon { opacity: .55; cursor: default; }
+.nav-count { margin-left: auto; min-width: 20px; padding: 0 6px; font-size: 11px; line-height: 18px; text-align: center; background: var(--color-accent-700); color: #fff; }
+.dash-nav a[aria-current="page"] .nav-count { background: var(--color-bg); color: var(--color-accent-700); }
 .dash-nav .soon .tag { margin-left: auto; }
 .dash-mechs { margin-top: auto; font-size: 12px; color: var(--color-neutral-700); border-top: 1px solid var(--color-divider); padding-top: 12px; }
 .dash-mechs > div { display: flex; justify-content: space-between; gap: 8px; }
 .dash-main { padding: 22px 28px 28px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 .dash-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; }
+.kpi-grid.kpi-grid-4 { grid-template-columns: repeat(4, 1fr); }
+/* Požiadavky: request cards two abreast. */
+.req-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+/* Prehľad: zárobok z práce · z dielov · spolu side by side in one frame. */
+.card.earn-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.earn-split > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px; }
+.earn-split > div + div { border-left: 1px solid var(--color-divider); }
 .kpi-v { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 34px; line-height: 1; }
 .dash-mid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; min-width: 0; }
 .bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; align-items: end; height: 160px; border-bottom: 1px solid var(--color-divider); }
@@ -149,13 +161,16 @@ select.input { appearance: none; }
   .dash-nav { flex-direction: row; flex-wrap: wrap; }
   .dash-mechs { margin-top: 0; border: 0; padding: 0; display: flex; gap: 12px; margin-left: auto; }
   .dash-mechs > div { gap: 6px; }
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid, .kpi-grid.kpi-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .req-grid { grid-template-columns: 1fr; }
   .dash-mid { grid-template-columns: 1fr; }
   .dash-main { padding: 18px 16px 24px; }
 }
 @media (max-width: 520px) {
   .kpi-grid { gap: 12px; }
   .kpi-v { font-size: 28px; }
+  .card.earn-split { grid-template-columns: 1fr; }
+  .earn-split > div + div { border-left: 0; border-top: 1px solid var(--color-divider); }
   .dash-nav .soon { display: none; }
 }
 

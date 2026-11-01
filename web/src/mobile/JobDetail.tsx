@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ChevronLeft, FileText, Pause, Play, Plus } from 'lucide-react'
+import { ChevronLeft, FileText, Pause, Play, Plus, ScanText } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { defaultStartOp, firstName, isClosed, isOverdue, isRunning, normClass, opOf, opSeconds, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
+import { defaultStartOp, firstName, isClosed, isOverdue, isPaid, isRunning, newPhotos, normClass, opOf, opSeconds, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, km, planLabel, timeOf } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
-import type { Part, PhotoStage } from '../lib/types'
+import type { Part } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
 import StatusTag from '../components/StatusTag'
@@ -24,8 +24,8 @@ import NormBadge from '../components/NormBadge'
 import OperationsSection from '../components/OperationsSection'
 import PlanDialog from '../components/PlanDialog'
 import { AddCodeDialog, AddPartDialog, AssignEntryDialog, ManualTimeDialog } from '../components/JobDialogs'
+import ScanPartsDialog from '../components/ScanPartsDialog'
 
-const STAGE_LABEL: Record<PhotoStage, string> = { pred: 'Pred', pocas: 'Počas', po: 'Po' }
 
 /** 1a · Zákazka — the stopwatch in the middle, parts and photos below. */
 export default function JobDetail() {
@@ -40,6 +40,7 @@ export default function JobDetail() {
   const now = useNow(!!order && isRunning(order))
   const [manualOpen, setManualOpen] = useState(false)
   const [partOpen, setPartOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
   const [editPart, setEditPart] = useState<Part | null>(null)
   const [closeOpen, setCloseOpen] = useState(false)
   const [codeOpen, setCodeOpen] = useState(false)
@@ -67,14 +68,11 @@ export default function JobDetail() {
   const runningOp = mine ? opOf(order, mine.order_operation_id) : null
   const openOps = order.operations.filter(op => !op.done)
 
-  const nextStage = (): PhotoStage => (closed ? 'po' : order.work_entries.length ? 'pocas' : 'pred')
-  const addPhotos = (blobs: Blob[]) => {
-    const stage = nextStage()
-    const n = order.photos.filter(p => p.stage === stage).length + 1
-    void act.run(async () => {
-      for (const [i, blob] of blobs.entries()) await actions.uploadPhoto(order.id, { blob, label: `${STAGE_LABEL[stage]} ${n + i}`, stage })
-    })
-  }
+  // Photos can still be added after closing (the report shows them) until the customer pays.
+  const photosLocked = isPaid(order)
+  const addPhotos = (blobs: Blob[]) => void act.run(async () => {
+    for (const photo of newPhotos(order, blobs)) await actions.uploadPhoto(order.id, photo)
+  })
   const toggleTimer = () => {
     if (!mine) return void act.run(() => actions.startTimer(order.id, startOp ? { order_operation_id: startOp.id } : {}))
     // Pauza always stops; a stint without a job then gets an optional "Čo si robil?" to file it under one.
@@ -172,7 +170,12 @@ export default function JobDetail() {
             ))}
             {!order.parts.length && <div className="muted" style={{ fontSize: 13, padding: '6px 0' }}>Zatiaľ bez dielov.</div>}
           </div>
-          {!closed && <button className="btn btn-ghost" style={{ marginTop: 6, minHeight: 44 }} onClick={() => setPartOpen(true)}>+ Pridať diel</button>}
+          {!closed && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+              <button className="btn btn-ghost" style={{ minHeight: 44 }} onClick={() => setPartOpen(true)}>+ Pridať diel</button>
+              <button className="btn btn-ghost" style={{ minHeight: 44 }} onClick={() => setScanOpen(true)}><ScanText size={16} strokeWidth={1.5} /> Zo screenshotu</button>
+            </div>
+          )}
         </section>
 
         <section>
@@ -180,10 +183,10 @@ export default function JobDetail() {
           <div className="photo-grid">
             {order.photos.map(p => (
               <ImageSlot key={p.id} src={p.url} label={p.label} style={{ aspectRatio: '1' }}
-                onPick={closed ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
-                    onRemove={closed ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
+                onPick={photosLocked ? undefined : blob => void act.run(() => actions.uploadPhoto(order.id, { blob, label: p.label, stage: p.stage, photo_id: p.id }))}
+                    onRemove={photosLocked ? undefined : () => { if (window.confirm(`Zmazať fotku „${p.label}“?`)) void act.run(() => actions.removePhoto(p.id)) }} />
             ))}
-            {!closed && <AddPhotoTile onPick={addPhotos} />}
+            {!photosLocked && <AddPhotoTile onPick={addPhotos} />}
           </div>
         </section>
 
@@ -234,6 +237,7 @@ export default function JobDetail() {
       {planOpen && <PlanDialog compact draft={{ order, date: order.planned_at ? dateOf(order.planned_at) : dateOf(new Date(now).toISOString()), time: order.planned_at ? timeOf(order.planned_at) : '08:00' }} busy={act.busy} onClose={() => setPlanOpen(false)}
         onSave={(o, patch) => void act.run(() => actions.updateOrder(o.id, patch)).then(() => setPlanOpen(false))} />}
       <AddPartDialog open={partOpen} onClose={() => setPartOpen(false)} orderId={order.id} />
+      <ScanPartsDialog open={scanOpen} onClose={() => setScanOpen(false)} orderId={order.id} />
       <AddPartDialog open={!!editPart} onClose={() => setEditPart(null)} orderId={order.id} part={editPart ?? undefined} />
       {closeOpen && <CloseOrderDialog order={order} rate={rate} now={now} billing={settings.data?.labor_billing} open onClose={() => setCloseOpen(false)} />}
       <AddCodeDialog open={codeOpen} onClose={() => setCodeOpen(false)} orderId={order.id} />

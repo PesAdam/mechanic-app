@@ -14,14 +14,18 @@ export class ApiError extends Error {
   }
 }
 
-export const token = {
+const tokenStore = (key: string) => ({
   get(): string | null {
-    try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
+    try { return localStorage.getItem(key) } catch { return null }
   },
   set(value: string | null): void {
-    try { value ? localStorage.setItem(TOKEN_KEY, value) : localStorage.removeItem(TOKEN_KEY) } catch { /* private mode */ }
+    try { value ? localStorage.setItem(key, value) : localStorage.removeItem(key) } catch { /* private mode */ }
   },
-}
+})
+
+export const token = tokenStore(TOKEN_KEY)
+/** The portal's own sign-in: a client and the shop never share a token, even on one device. */
+export const portalToken = tokenStore('mechanic-app:portal-token')
 
 let onUnauthorized: (() => void) | null = null
 export const setUnauthorizedHandler = (fn: (() => void) | null): void => { onUnauthorized = fn }
@@ -29,12 +33,15 @@ export const setUnauthorizedHandler = (fn: (() => void) | null): void => { onUna
 interface Options extends Omit<RequestInit, 'body'> {
   json?: unknown
   form?: FormData
+  /** Sends the portal client's token instead of the shop's. */
+  portal?: boolean
 }
 
 export async function api<T>(path: string, options: Options = {}): Promise<T> {
-  const { json, form, headers: extra, ...init } = options
+  const { json, form, portal, headers: extra, ...init } = options
   const headers: Record<string, string> = { Accept: 'application/json', ...(extra as Record<string, string> | undefined) }
-  const t = token.get()
+  const store = portal ? portalToken : token
+  const t = store.get()
   if (t) headers.Authorization = `Bearer ${t}`
 
   let body: BodyInit | undefined
@@ -51,8 +58,8 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   const data = (await res.json().catch(() => null)) as { message?: string; errors?: Record<string, string[]> } | null
   if (!res.ok) {
     if (res.status === 401) {
-      token.set(null)
-      onUnauthorized?.()
+      store.set(null)
+      if (!portal) onUnauthorized?.()
     }
     const message = data?.errors ? Object.values(data.errors).flat()[0] ?? data.message : data?.message
     throw new ApiError(res.status, message || `Chyba servera (${res.status})`, data?.errors)
