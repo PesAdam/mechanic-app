@@ -22,6 +22,7 @@ import RequestsPage from './admin/RequestsPage'
 import PortalInvite from './portal/PortalInvite'
 import PortalLogin from './portal/PortalLogin'
 import PortalHome from './portal/PortalHome'
+import PortalShell from './portal/PortalShell'
 
 /** Old URLs from before the mobile/admin split keep working (installed PWAs may still hold them). */
 function Legacy({ to }: { to: string }) {
@@ -36,9 +37,11 @@ export default function App() {
       <Route path="/r/:token" element={<PublicReport />} />
 
       {/* Portál pre pozvaných: own sign-in, never the shop's screens */}
-      <Route path="/pozvanka/:token" element={<PortalInvite />} />
-      <Route path="/portal/prihlasenie" element={<PortalLogin />} />
-      <Route path="/portal" element={<PortalHome />} />
+      <Route element={<PortalShell />}>
+        <Route path="/pozvanka/:token" element={<PortalInvite />} />
+        <Route path="/portal/prihlasenie" element={<PortalLogin />} />
+        <Route path="/portal" element={<PortalHome />} />
+      </Route>
 
       <Route element={<RequireAuth />}>
         <Route path="/" element={<ZoneRedirect />} />

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Customer;
 use App\Models\Part;
 use App\Models\Setting;
 use App\Models\User;
@@ -41,6 +42,100 @@ class WorkOrderControllerTest extends TestCase
             ->assertJsonPath('data.0.totals.parts', 50)
             ->assertJsonPath('data.0.totals.labor', 14)
             ->assertJsonPath('data.0.totals.grand', 64);
+    }
+
+    public function test_lowering_the_parts_margin_moves_zarobok_and_never_what_the_customer_pays(): void
+    {
+        $this->travelTo('2026-11-02 12:00:00');
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+        $order = WorkOrder::factory()->create(['status' => 'done', 'closed_at' => now(), 'paid_at' => now()]);
+        Part::factory()->for($order)->create(['price' => 553.68, 'purchase_price' => 442.68]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['parts_margin_adjustment' => -50])
+            ->assertOk()
+            ->assertJsonPath('data.parts_margin_adjustment', -50)
+            ->assertJsonPath('data.totals.parts_margin', 61)
+            ->assertJsonPath('data.totals.grand', 553.68);
+
+        $this->getJson('/api/v1/stats?period=month&date=2026-11-02')
+            ->assertJsonPath('current.billed', 553.68)
+            ->assertJsonPath('current.parts_adjustment', -50)
+            ->assertJsonPath('current.parts_margin', 61)
+            ->assertJsonPath('current.earnings', 61)
+            ->assertJsonPath('orders.0.earnings', 61);
+        $this->getJson('/api/v1/dashboard?period=week')->assertJsonPath('kpi.parts_margin', 61)->assertJsonPath('kpi.earnings', 61);
+        $this->getJson("/api/v1/public/reports/{$order->public_token}")
+            ->assertJsonPath('order.parts_margin_adjustment', null)
+            ->assertJsonPath('order.totals.grand', 553.68)
+            ->assertJsonMissingPath('order.totals.parts_margin');
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['parts_margin_adjustment' => null])->assertOk()->assertJsonPath('data.totals.parts_margin', 111);
+    }
+
+    public function test_stred_bills_each_part_halfway_between_moc_and_nc_on_the_order_and_the_report(): void
+    {
+        $this->freezeTime();
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+        $order = WorkOrder::factory()->unpaid()->create();
+        Part::factory()->for($order)->create(['price' => 553.68, 'purchase_price' => 442.68]);
+        Part::factory()->for($order)->create(['price' => 10.01, 'purchase_price' => 10.00]);
+        Part::factory()->for($order)->create(['price' => 20, 'purchase_price' => null]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['parts_pricing' => 'mid'])
+            ->assertOk()
+            ->assertJsonPath('data.parts_pricing', 'mid')
+            ->assertJsonPath('data.totals.parts', 528.19)
+            ->assertJsonPath('data.totals.parts_margin', 55.51)
+            ->assertJsonPath('data.totals.grand', 528.19);
+
+        // The half cent rounds up and a part without an NC keeps its MOC, exactly as the web app prices them.
+        $this->getJson("/api/v1/public/reports/{$order->public_token}")
+            ->assertJsonPath('order.parts.0.price', 498.18)
+            ->assertJsonPath('order.parts.1.price', 10.01)
+            ->assertJsonPath('order.parts.2.price', 20)
+            ->assertJsonPath('order.totals.parts', 528.19);
+    }
+
+    public function test_nc_plus_10_bills_each_part_a_tenth_above_its_nc_on_the_order_and_the_report(): void
+    {
+        $this->freezeTime();
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+        $order = WorkOrder::factory()->unpaid()->create();
+        Part::factory()->for($order)->create(['price' => 553.68, 'purchase_price' => 442.68]);
+        Part::factory()->for($order)->create(['price' => 10.01, 'purchase_price' => 4.45]);
+        Part::factory()->for($order)->create(['price' => 20, 'purchase_price' => null]);
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['parts_pricing' => 'n10'])
+            ->assertOk()
+            ->assertJsonPath('data.parts_pricing', 'n10')
+            ->assertJsonPath('data.totals.parts', 511.85)
+            ->assertJsonPath('data.totals.parts_margin', 44.72)
+            ->assertJsonPath('data.totals.grand', 511.85);
+        $this->assertSame('n10', $order->fresh()->parts_pricing->value);
+
+        // 4.45 + 10 % is 4.895: the half cent rounds up, and a part without an NC keeps its MOC.
+        $this->getJson("/api/v1/public/reports/{$order->public_token}")
+            ->assertJsonPath('order.parts.0.price', 486.95)
+            ->assertJsonPath('order.parts.1.price', 4.9)
+            ->assertJsonPath('order.parts.2.price', 20)
+            ->assertJsonPath('order.totals.parts', 511.85);
+    }
+
+    public function test_the_report_note_reaches_the_customer_report_and_an_emptied_one_is_gone(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+        $order = WorkOrder::factory()->unpaid()->create();
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['report_note' => "  Vymenený olej a filter.\nNabudúce skontrolovať brzdy.  "])
+            ->assertOk()
+            ->assertJsonPath('data.report_note', "Vymenený olej a filter.\nNabudúce skontrolovať brzdy.");
+        $this->getJson("/api/v1/public/reports/{$order->public_token}")
+            ->assertJsonPath('order.report_note', "Vymenený olej a filter.\nNabudúce skontrolovať brzdy.");
+
+        $this->patchJson("/api/v1/orders/{$order->id}", ['report_note' => '   '])
+            ->assertOk()
+            ->assertJsonPath('data.report_note', null);
+        $this->assertNull($order->fresh()->report_note);
     }
 
     public function test_store_creates_customer_car_and_order_with_the_next_number(): void
@@ -217,6 +312,60 @@ class WorkOrderControllerTest extends TestCase
             ->assertJsonPath('data.customer.email', 'jakub@example.sk');
         $this->assertDatabaseHas('cars', ['id' => $order->car_id, 'km' => 184500]);
         $this->assertDatabaseHas('customers', ['id' => $order->customer_id, 'name' => 'Jakub Jakubík']);
+    }
+
+    public function test_renaming_the_customer_on_the_latest_order_leaves_the_car_s_finished_reports_in_the_old_name(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $paid = WorkOrder::factory()->paid()->create(['customer_id' => Customer::factory()->create(['name' => 'Peter Kubišta'])->id]);
+        $open = WorkOrder::factory()->open()->create(['customer_id' => $paid->customer_id, 'car_id' => $paid->car_id]);
+
+        $this->patchJson("/api/v1/orders/{$open->id}", ['customer' => ['name' => 'Dominik Šalát']])
+            ->assertOk()
+            ->assertJsonPath('data.customer.name', 'Dominik Šalát');
+
+        // The paid order and its report still belong to Peter; the open order got a customer row of its own.
+        $this->assertSame($paid->customer_id, $paid->fresh()->customer_id);
+        $this->assertDatabaseHas('customers', ['id' => $paid->customer_id, 'name' => 'Peter Kubišta']);
+        $this->assertNotSame($paid->customer_id, $open->fresh()->customer_id);
+        $this->getJson("/api/v1/public/reports/{$paid->public_token}")->assertOk()->assertJsonPath('order.customer.name', 'Peter Kubišta');
+        // The car goes with its latest order, so the next visit prefills Dominik.
+        $this->assertSame($open->fresh()->customer_id, $paid->car->fresh()->customer_id);
+    }
+
+    public function test_fixing_the_name_on_an_old_order_does_not_hand_the_car_to_that_person(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $old = WorkOrder::factory()->paid()->create(['customer_id' => Customer::factory()->create(['name' => 'Dominik Šalát'])->id]);
+        $latest = WorkOrder::factory()->open()->create(['customer_id' => $old->customer_id, 'car_id' => $old->car_id]);
+
+        $this->patchJson("/api/v1/orders/{$old->id}", ['customer' => ['name' => 'Peter Kubišta']])
+            ->assertOk()
+            ->assertJsonPath('data.customer.name', 'Peter Kubišta');
+
+        $this->assertDatabaseHas('customers', ['id' => $old->fresh()->customer_id, 'name' => 'Peter Kubišta']);
+        $this->assertSame($latest->customer_id, $latest->fresh()->customer_id);
+        $this->assertDatabaseHas('customers', ['id' => $latest->customer_id, 'name' => 'Dominik Šalát']);
+        $this->assertSame($latest->customer_id, $old->car->fresh()->customer_id);
+    }
+
+    public function test_a_returning_car_with_a_new_owner_keeps_the_old_orders_in_the_old_name(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $old = WorkOrder::factory()->paid()->create(['customer_id' => Customer::factory()->create(['name' => 'Peter Kubišta', 'phone' => '+421 900 000 001'])->id]);
+
+        $response = $this->postJson('/api/v1/orders', [
+            'customer' => ['name' => 'Dominik Šalát'],
+            'car' => ['id' => $old->car_id, 'make' => 'Škoda', 'model' => 'Octavia III 2.0 TDI', 'plate' => $old->car->plate],
+            'summary' => 'Olej a filtre',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.customer.name', 'Dominik Šalát')
+            ->assertJsonPath('data.car.id', $old->car_id);
+        $this->assertSame($old->customer_id, $old->fresh()->customer_id);
+        $this->assertDatabaseHas('customers', ['id' => $old->customer_id, 'name' => 'Peter Kubišta', 'phone' => '+421 900 000 001']);
+        $this->assertSame($response->json('data.customer.id'), $old->car->fresh()->customer_id);
     }
 
     public function test_update_rejects_negative_mileage_and_invalid_email(): void

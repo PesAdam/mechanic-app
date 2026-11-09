@@ -57,7 +57,7 @@ final class ServiceRequests
             $order = WorkOrder::query()->create([
                 'customer_id' => $customer->id,
                 'car_id' => $car->id,
-                'summary' => Str::limit(preg_replace('/\s+/', ' ', trim($request->description)), 250),
+                'summary' => Str::limit((string) preg_replace('/\s+/u', ' ', trim($request->description)), 250),
                 'status' => OrderStatus::New,
                 'received_at' => now(),
             ]);

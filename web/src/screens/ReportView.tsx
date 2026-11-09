@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { FileText } from 'lucide-react'
 import { partPrice, carName } from '../lib/calc'
 import { addDays, dateOf, eur, hhmm, hm, hoursSk, km, shortVin, skDate } from '../lib/format'
@@ -7,6 +7,7 @@ import AddPhotoTile from '../components/AddPhotoTile'
 import Blueprint from '../components/Blueprint'
 import ImageSlot from '../components/ImageSlot'
 import PayBySquare from '../components/PayBySquare'
+import PhotoViewer from '../components/PhotoViewer'
 
 const CODE_TAG: Record<CodeStatus, [string, string]> = { fixed: ['Odstránené', 'tag-accent'], watch: ['Sledovať', 'tag-neutral'], open: ['Otvorené', 'tag-outline'] }
 const DUE_DAYS = 14
@@ -26,7 +27,8 @@ interface Props {
 export default function ReportView({ order, settings, now, tools, onAddPhotos, photosBusy }: Props) {
   const b = settings.business
   const mode = settings.report_labor ?? 'price'
-  const rate = settings.hourly_rate
+  // The rate the order was billed at; the shop may have changed its rate since.
+  const rate = order.hourly_rate ?? settings.hourly_rate
   const t = order.totals
   const byNorm = t.labor_billing === 'norm'
   const rows = order.report?.rows ?? []
@@ -37,21 +39,25 @@ export default function ReportView({ order, settings, now, tools, onAddPhotos, p
   // const vs = `${year}${order.number}`
   const range = order.report?.period ? `${hhmm(new Date(order.report.period.from))} – ${hhmm(new Date(order.report.period.to))}` : null
   const photos = order.photos
+  // Only photos with a file open full size; the viewer steps through these.
+  const shots = photos.filter(p => p.url)
+  const [viewing, setViewing] = useState<number | null>(null)
   const codes = order.diagnostic?.codes ?? []
+  const note = order.report_note?.trim()
 
   return (
     <div className="report-wrap">
       {tools && <div className="report-tools no-print">{tools}</div>}
 
       <article className="report">
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+        <header className="report-head">
           <div>
-            <div className="hd" style={{ fontSize: 40, lineHeight: 0.9 }}>{b.name}</div>
+            <div className="hd report-brand">{b.name}</div>
             <div className="muted" style={{ marginTop: 8, lineHeight: 1.4 }}>
               {[b.owner, [b.street, b.city].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}<br />{[b.phone, b.email, b.ico ? `IČO ${b.ico}` : ''].filter(Boolean).join(' · ')}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div className="report-meta">
             <div className="kicker-muted" style={{ letterSpacing: '.12em' }}>Servisný report</div>
             <div className="hd" style={{ fontSize: 28, lineHeight: 1 }}>#{order.number}</div>
             <div className="muted" style={{ marginTop: 6 }}>{skDate(day)}{range ? ` · ${range}` : ''}</div>
@@ -76,7 +82,12 @@ export default function ReportView({ order, settings, now, tools, onAddPhotos, p
           <h3><span>01</span>Fotodokumentácia</h3>
           <div className="r-photos">
             {photos.length === 0 && <ImageSlot label="Auto zákazníka" />}
-            {photos.map(p => <ImageSlot key={p.id} src={p.url} label={p.label ?? 'Fotka'} />)}
+            {photos.map(p => (
+              <figure key={p.id} className="r-photo">
+                <ImageSlot src={p.url} label={p.label ?? 'Fotka'} onOpen={p.url ? () => setViewing(shots.findIndex(s => s.id === p.id)) : undefined} />
+                <figcaption>{p.label ?? 'Fotka'}</figcaption>
+              </figure>
+            ))}
             {onAddPhotos && (
               <div className="no-print">
                 {photosBusy ? <div className="blueprint add-tile muted" role="status">Nahrávam…</div> : <AddPhotoTile onPick={onAddPhotos} />}
@@ -89,13 +100,16 @@ export default function ReportView({ order, settings, now, tools, onAddPhotos, p
           <h3><span>02</span>Výpis z diagnostiky</h3>
           {codes.length ? (
             <table className="table" style={{ fontSize: 13 }}>
-              <thead><tr><th>Kód</th><th>Popis</th><th>Riadiaca jednotka</th><th>Stav</th></tr></thead>
+              <thead><tr><th>Kód</th><th>Popis</th><th className="r-unit">Riadiaca jednotka</th><th>Stav</th></tr></thead>
               <tbody>
                 {codes.map(c => {
                   const [label, cls] = CODE_TAG[c.status]
                   return (
                     <tr key={c.id}>
-                      <td className="num"><b>{c.code}</b></td><td>{c.description || '—'}</td><td>{c.unit || '—'}</td><td><span className={`tag ${cls}`}>{label}</span></td>
+                      <td className="num"><b>{c.code}</b></td>
+                      <td>{c.description || '—'}{c.unit && <div className="r-unit-inline muted">{c.unit}</div>}</td>
+                      <td className="r-unit">{c.unit || '—'}</td>
+                      <td><span className={`tag ${cls}`}>{label}</span></td>
                     </tr>
                   )
                 })}
@@ -140,6 +154,13 @@ export default function ReportView({ order, settings, now, tools, onAddPhotos, p
           </section>
         </div>
 
+        {note && (
+          <section>
+            <h3><span>05</span>Poznámka</h3>
+            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note}</p>
+          </section>
+        )}
+
         <Blueprint className="r-invoice">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="r-k">Doklad č. {docNo} · {b.vat_payer ? 'platiteľ DPH' : 'neplatiteľ DPH'}</div>
@@ -155,6 +176,7 @@ export default function ReportView({ order, settings, now, tools, onAddPhotos, p
           <PayBySquare iban={b.iban} amount={t.grand} /* vs={vs} */ beneficiary={b.owner || b.name} due={addDays(day, DUE_DAYS)} note={`Doklad ${docNo}`} />
         </Blueprint>
       </article>
+      {viewing !== null && <PhotoViewer photos={shots} index={viewing} onClose={() => setViewing(null)} onIndex={setViewing} />}
     </div>
   )
 }

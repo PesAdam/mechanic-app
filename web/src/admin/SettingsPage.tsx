@@ -66,7 +66,7 @@ function SettingsForm({ initial, initialRate, initialBilling, initialReportLabor
         <Blueprint className="card" style={{ padding: '16px 18px', gap: 12, maxWidth: 800 }}>
           <span className="card-title">Cenník</span>
           <div className="field" style={{ maxWidth: 220 }}><label htmlFor="s-rate">Hodinová sadzba práce (€/h)</label><input id="s-rate" className="input" inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} /></div>
-          <div className="muted" style={{ fontSize: 12 }}>Sadzba sa použije pri výpočte práce na všetkých zákazkách vrátane už uzavretých.</div>
+          <div className="muted" style={{ fontSize: 12 }}>Platí pre zákazky prijaté po jej uložení. Staršie zákazky – aj rozpracované – si nechajú sadzbu, s ktorou prišli, a ich sumy sa nezmenia.</div>
           <div className="field"><label>Účtovanie práce zákazníkovi</label>
             <div className="seg">
               <label className="seg-opt"><input type="radio" name="billing" checked={billing === 'actual'} onChange={() => setBilling('actual')} />Skutočný čas</label>

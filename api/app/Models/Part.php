@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PartsPricing;
 use Database\Factories\PartFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,6 +23,12 @@ class Part extends Model
     public function workOrder(): BelongsTo
     {
         return $this->belongsTo(WorkOrder::class);
+    }
+
+    /** What the customer pays for this part under the order's pricing. */
+    public function priceFor(PartsPricing $pricing): float
+    {
+        return $pricing->price((float) $this->price, $this->purchase_price === null ? null : (float) $this->purchase_price);
     }
 
     /** Purchase price (NC); a part without one is costed at its retail price. */

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, Pencil, RotateCcw, X } from 'lucide-react'
-import { isPaid } from '../lib/calc'
+import { PRICING_LABEL, isPaid } from '../lib/calc'
 import { eur } from '../lib/format'
 import type { Order } from '../lib/types'
 
@@ -72,7 +72,7 @@ export default function TotalEdit({ order, grand, computed, busy, onSave, large 
       <div style={{ display: 'inline-flex', gap: 6, alignItems: 'baseline' }}>
         <b style={edited ? { color: 'var(--color-bad)' } : undefined}>{eur(grand)}</b>
         {edited && <s className="muted" style={{ fontSize: 11 }}>{eur(original)}</s>}
-        <span className="muted" style={{ fontSize: 10 }}>diely {order.parts_pricing.toUpperCase()}</span>
+        <span className="muted" style={{ fontSize: 10 }}>diely {PRICING_LABEL[order.parts_pricing]}</span>
         {buttons}
       </div>
       {change && <div style={{ color: 'var(--color-bad)', fontSize: 11, fontWeight: 600 }}>{change}</div>}

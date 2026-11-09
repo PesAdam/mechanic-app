@@ -45,7 +45,6 @@ class SettingController extends Controller
         if (array_key_exists('report_labor', $data)) {
             Setting::set('report_labor', $data['report_labor']);
         }
-        Settings::forget();
 
         foreach ($data['business'] ?? [] as $key => $value) {
             Setting::set("business.$key", is_bool($value) ? (int) $value : $value);

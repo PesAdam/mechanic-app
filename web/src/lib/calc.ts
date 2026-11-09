@@ -31,9 +31,30 @@ export const sessionSeconds = (o: Order, userId: number, now: number): number =>
     .reduce((a, e) => a + entrySeconds(e, now), 0)
 }
 
-/** Price of a part in the chosen mode; a part without NC falls back to its MOC. */
-export const partPrice = (p: Part, mode: PartsPricing): number => (mode === 'nc' ? p.purchase_price ?? p.price : p.price)
 export const partCost = (p: Part): number => p.purchase_price ?? p.price
+
+/** Cents to euros, the half cent away from zero, as the server bills it. */
+const toEur = (cents: number): number => (Math.sign(cents) * Math.round(Math.abs(cents))) / 100
+
+const halfway = (a: number, b: number): number => toEur((Math.round(a * 100) + Math.round(b * 100)) / 2)
+
+const plus10 = (a: number): number => toEur(Math.round(a * 100) * 11 / 10)
+
+/** Price of a part in the chosen mode; a part without NC falls back to its MOC. */
+export const partPrice = (p: Part, mode: PartsPricing): number => {
+  if (mode === 'nc') return partCost(p)
+  if (mode === 'n10') return p.purchase_price === null ? p.price : plus10(p.purchase_price)
+  if (mode === 'mid') return halfway(p.price, partCost(p))
+  return p.price
+}
+
+/** What the charged parts of an order come to in a mode. */
+export const partsAt = (o: Order, mode: PartsPricing): number => o.parts.filter(p => p.used).reduce((a, p) => a + partPrice(p, mode), 0)
+
+export const PRICING_LABEL: Record<PartsPricing, string> = { moc: 'MOC', mid: 'STRED', nc: 'NC', n10: 'NC+10%' }
+
+/** The modes in the order the switches offer them. */
+export const PRICING_MODES: PartsPricing[] = ['moc', 'mid', 'nc', 'n10']
 
 export const normSeconds = (o: Order): number => (o.operations ?? []).reduce((a, op) => a + op.norm_minutes * 60, 0)
 
@@ -83,7 +104,9 @@ export const defaultStartOp = (o: Order, userId: number): OrderOperation | null 
 /** 'norm-ok' while the measured time is within the norm, 'norm-bad' once over it, '' without a norm. */
 export const normClass = (seconds: number, norm: number): string => (!norm ? '' : norm - seconds >= 0 ? 'norm-ok' : 'norm-bad')
 
-export function totalsOf(o: Order, rate: number, now: number, billing: LaborBilling = 'actual') {
+/** `shopRate` only stands in for an order that does not carry its own rate. */
+export function totalsOf(o: Order, shopRate: number, now: number, billing: LaborBilling = 'actual') {
+  const rate = o.hourly_rate ?? shopRate
   const seconds = totalSeconds(o, now)
   const norm_seconds = normSeconds(o)
   const labor_actual = (seconds / 3600) * rate
@@ -94,12 +117,13 @@ export function totalsOf(o: Order, rate: number, now: number, billing: LaborBill
   const parts_retail = used.reduce((a, p) => a + p.price, 0)
   const parts_cost = used.reduce((a, p) => a + partCost(p), 0)
   // What the customer pays for parts follows the order's chosen pricing.
-  const parts = o.parts_pricing === 'nc' ? parts_cost : parts_retail
+  const parts = partsAt(o, o.parts_pricing)
+  const parts_margin_adjustment = o.parts_margin_adjustment ?? 0
   return {
-    seconds, norm_seconds, delta_seconds: norm_seconds > 0 ? norm_seconds - seconds : null,
+    rate, seconds, norm_seconds, delta_seconds: norm_seconds > 0 ? norm_seconds - seconds : null,
     labor, labor_actual, labor_norm, labor_billing: (byNorm ? 'norm' : 'actual') as LaborBilling,
     // A hand-edited total (zľava) wins over the calculated one.
-    parts, parts_retail, parts_cost, grand_computed: labor + parts, grand: o.total_override ?? labor + parts,
+    parts, parts_retail, parts_cost, parts_margin_adjustment, parts_margin: parts - parts_cost + parts_margin_adjustment, grand_computed: labor + parts, grand: o.total_override ?? labor + parts,
   }
 }
 

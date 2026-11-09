@@ -1,0 +1,18 @@
+{
+  "id": "/portal",
+  "name": "Požiadavky do dielne",
+  "short_name": "Požiadavky",
+  "description": "Pošlite dielni auto a čo na ňom treba urobiť.",
+  "lang": "sk",
+  "start_url": "/portal",
+  "scope": "/portal",
+  "display": "standalone",
+  "background_color": "#f2f2f3",
+  "theme_color": "#f2f2f3",
+  "icons": [
+    { "src": "/pwa-64x64.png", "sizes": "64x64", "type": "image/png" },
+    { "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/pwa-512x512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/maskable-icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

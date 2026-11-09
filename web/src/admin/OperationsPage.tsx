@@ -62,11 +62,11 @@ export default function OperationsPage() {
       <div className="admin-head">
         <div><div className="kicker">Normohodiny</div><h1>Úkony</h1></div>
         <div className="admin-actions">
-          <select className="input" style={{ width: 190, minHeight: 36 }} value={category} onChange={e => setCategory(e.target.value)} aria-label="Kategória">
+          <select className="input admin-filter-sm" value={category} onChange={e => setCategory(e.target.value)} aria-label="Kategória">
             <option value="">Všetky kategórie</option>
             {OPERATION_CATEGORIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
-          <input className="input" style={{ width: 220, minHeight: 36 }} placeholder="Hľadať úkon…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Hľadať" />
+          <input className="input admin-filter" placeholder="Hľadať úkon…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Hľadať" />
           <label className="radio" style={{ gap: 8, fontSize: 13 }}><input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} style={{ position: 'static', opacity: 1, width: 14, height: 14, pointerEvents: 'auto' }} />aj neaktívne</label>
           <button className="btn btn-secondary" style={{ minHeight: 36 }} disabled={importing === '…'} title="Doplní bežné značky, modely a motorizácie do katalógu vozidiel"
             onClick={() => { setImporting('…'); importDefaults().then(n => setImporting(`${n} značiek doplnených ✓`)).catch(() => setImporting('Nepodarilo sa doplniť katalóg.')).finally(() => setTimeout(() => setImporting(null), 3000)) }}>

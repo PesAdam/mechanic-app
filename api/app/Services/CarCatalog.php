@@ -9,10 +9,11 @@ use App\Models\OperationNorm;
 use App\Models\OperationSample;
 use App\Support\VehicleCatalog;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Finds or creates the make / model / engine a typed-in car belongs to.
- * Names are matched case-insensitively in PHP (SQLite's LOWER() ignores diacritics).
+ * Names are matched in PHP without case or accents, like the production MySQL collation (SQLite's LOWER() ignores diacritics).
  */
 final class CarCatalog
 {
@@ -104,8 +105,17 @@ final class CarCatalog
      */
     private static function pick(Collection $rows, string $name)
     {
-        $needle = mb_strtolower(trim($name));
+        $needle = self::key($name);
 
-        return $rows->first(fn ($row) => mb_strtolower($row->name) === $needle);
+        return $rows->first(fn ($row) => self::key($row->name) === $needle);
+    }
+
+    /**
+     * Names compare the way MySQL's utf8mb4_unicode_ci does (no case, no accents): "Skoda" typed on a phone is
+     * Škoda. Matching more strictly than the unique index would try to create a "duplicate" the database refuses.
+     */
+    private static function key(string $name): string
+    {
+        return mb_strtolower(Str::ascii((string) preg_replace('/\s+/u', ' ', trim($name))));
     }
 }

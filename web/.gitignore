@@ -8,3 +8,6 @@ dev-dist
 # Playwright
 playwright-report
 test-results
+
+# TypeScript incremental build state
+*.tsbuildinfo

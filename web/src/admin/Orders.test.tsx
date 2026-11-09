@@ -6,18 +6,19 @@ import Orders from './Orders'
 import type { Order } from '../lib/types'
 
 const order = (over: Partial<Order>): Order => ({
-  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, summary: 'Brzdy', lift: null, received_at: null, planned_at: null, planned_minutes: null, closed_at: null, paid_at: null, public_token: 't',
+  id: 1, number: '0231', status: 'open', parts_pricing: 'moc', total_original: null, total_override: null, parts_margin_adjustment: null, hourly_rate: null, summary: 'Brzdy', report_note: null, lift: null, received_at: null, planned_at: null, planned_minutes: null, closed_at: null, paid_at: null, public_token: 't',
   customer: { id: 1, name: 'Ján Kováč', phone: null, email: null },
   car: { id: 1, make: 'Škoda', model: 'Octavia III', engine: '2.0 TDI', car_make_id: 1, car_model_id: 1, car_engine_id: 1, logo_url: null, plate: 'ZA 412 KL', vin: null, km: 0 },
   mechanic: null, parts: [], photos: [], diagnostic: null, work_entries: [], operations: [],
-  totals: { seconds: 0, norm_seconds: 0, delta_seconds: null, labor: 0, labor_actual: 0, labor_norm: 0, labor_billing: 'actual', parts: 0, parts_retail: 0, parts_cost: 0, parts_pricing: 'moc', grand_computed: 0, grand: 0 },
+  totals: { seconds: 0, norm_seconds: 0, delta_seconds: null, labor: 0, labor_actual: 0, labor_norm: 0, labor_billing: 'actual', parts: 0, parts_retail: 0, parts_cost: 0, parts_margin_adjustment: 0, parts_margin: 0, parts_pricing: 'moc', grand_computed: 0, grand: 0 },
   report: { rows: [], period: null },
   ...over,
 })
 
 // As the API sends them: newest received first. 0004 came in early but was finished last; 0002 was paid long after closing.
 const ORDERS = [
-  order({ id: 11, number: '0011', received_at: '2026-10-28T08:00:00.000Z' }),
+  order({ id: 11, number: '0011', received_at: '2026-10-28T08:00:00.000Z', parts_margin_adjustment: -50,
+    parts: [{ id: 1, name: 'Ložisko', meta: null, price: 553.68, purchase_price: 442.68, used: true, added_at: '2026-10-28T09:00:00.000Z' }] }),
   order({ id: 10, number: '0010', status: 'done', received_at: '2026-10-22T08:00:00.000Z', closed_at: '2026-10-22T15:00:00.000Z', paid_at: '2026-10-23T09:00:00.000Z' }),
   order({ id: 4, number: '0004', status: 'done', received_at: '2026-10-19T08:00:00.000Z', closed_at: '2026-10-28T15:00:00.000Z', paid_at: '2026-10-28T16:00:00.000Z' }),
   order({ id: 2, number: '0002', status: 'done', received_at: '2026-10-13T08:00:00.000Z', closed_at: '2026-10-14T15:00:00.000Z', paid_at: '2026-10-25T10:00:00.000Z' }),
@@ -32,6 +33,13 @@ vi.mock('../components/NewJobDialog', () => ({ default: () => null }))
 const numbers = () => screen.getAllByRole('row').slice(1).map(r => within(r).getAllByRole('cell')[0].textContent)
 
 describe('Orders', () => {
+  it('shows the parts margin after the owner\'s úprava, with what went to someone else', () => {
+    render(<MemoryRouter><Orders /></MemoryRouter>)
+    const row = screen.getAllByRole('row').find(r => within(r).queryByText('0011'))!
+    expect(within(row).getByText('61,00 €')).toBeInTheDocument()
+    expect(within(row).getByText('odvod −50,00 €')).toBeInTheDocument()
+  })
+
   it('lists paid orders by the day the money came in, newest first, and can sort them by closing or receiving', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><Orders /></MemoryRouter>)

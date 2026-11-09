@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Settings;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,6 +15,12 @@ class Setting extends Model
     public $incrementing = false;
 
     protected $keyType = 'string';
+
+    protected static function booted(): void
+    {
+        // The rate and billing are memoized per request; a saved value must not be answered with the old one.
+        static::saved(fn () => Settings::forget());
+    }
 
     public static function get(string $key, mixed $default = null): mixed
     {

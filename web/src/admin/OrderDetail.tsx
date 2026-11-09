@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings, useUsers } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { defaultStartOp, entrySeconds, firstName, isClosed, isPaid, isRunning, newPhotos, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
+import { PRICING_LABEL, defaultStartOp, entrySeconds, firstName, isClosed, isPaid, isRunning, newPhotos, normClass, plannedMinutes, runningEntryOf, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, hoursSk, km, localToIso, shortVin, skDate, timeOf } from '../lib/format'
 import { publicReportUrl } from '../lib/share'
 import type { CodeStatus, Order, Part, WorkEntry } from '../lib/types'
@@ -19,6 +19,7 @@ import NormBadge from '../components/NormBadge'
 import OperationsSection from '../components/OperationsSection'
 import AddPhotoTile from '../components/AddPhotoTile'
 import ShareReport from '../components/ShareReport'
+import MarginEdit from '../components/MarginEdit'
 import TotalEdit from '../components/TotalEdit'
 import MakeLogo from '../components/MakeLogo'
 import { AddCodeDialog, AddPartDialog, EditCarDialog, ManualTimeDialog } from '../components/JobDialogs'
@@ -72,7 +73,7 @@ export default function OrderDetail() {
       <div className="admin-head">
         <div>
           <div className="kicker"><Link to="/admin/zakazky">Zákazky</Link> · #{order.number}{order.received_at ? ` · prijaté ${skDate(dateOf(order.received_at))} ${timeOf(order.received_at)}` : ''}</div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MakeLogo name={order.car.make} url={order.car.logo_url} size={34} decorative />{carName(order.car)}
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: '4px 12px', flexWrap: 'wrap' }}><MakeLogo name={order.car.make} url={order.car.logo_url} size={34} decorative />{carName(order.car)}
             <button type="button" className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} onClick={() => setCarOpen(true)} aria-label="Upraviť vozidlo" title="Opraviť značku, model, motorizáciu, ŠPZ alebo VIN"><Pencil size={16} strokeWidth={1.5} /></button>
           </h1>
           <div className="muted" style={{ fontSize: 13 }}>{order.car.plate} · {km(order.car.km)} · VIN {shortVin(order.car.vin)} · {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ''}</div>
@@ -94,12 +95,12 @@ export default function OrderDetail() {
         <div className="order-col">
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Úkony</span><span className="muted" style={{ fontSize: 13 }}>{t.norm_seconds ? `norma ${hm(t.norm_seconds)}` : 'bez normy'}</span></div>
-            <OperationsSection order={order} closed={closed} locked={locked} title={false} now={now} rate={rate} />
+            <OperationsSection order={order} closed={closed} locked={locked} title={false} now={now} rate={t.rate} />
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
             <div className="sec-head" style={{ marginBottom: 0 }}><span className="card-title">Čas pri aute</span><span className={`hd num ${normClass(t.seconds, t.norm_seconds)}`}>{hm(t.seconds)}</span></div>
-            {t.norm_seconds > 0 && <div style={{ fontSize: 13 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} size={13} /></div>}
+            {t.norm_seconds > 0 && <div style={{ fontSize: 13 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={t.rate} size={13} /></div>}
             <div>
               {order.work_entries.map(e => <EntryRow key={e.id} entry={e} now={now} order={order} locked={locked} busy={act.busy} onAssign={opId => void act.run(() => actions.updateEntry(e.id, { order_operation_id: opId }))}
                 onRemove={() => { if (window.confirm(`Zmazať zápis ${firstName(e.user.name)} ${timeOf(e.started_at)}${e.ended_at ? `–${timeOf(e.ended_at)}` : ''} (${hm(entrySeconds(e, now))})?`)) void act.run(() => actions.removeEntry(order.id, e.id)) }} />)}
@@ -174,23 +175,31 @@ export default function OrderDetail() {
             <input ref={diagInput} type="file" accept=".pdf,application/pdf,.txt,.csv,.log" hidden
               onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void act.run(() => actions.uploadDiagnostic(order.id, f)) }} />
           </Blueprint>
+
+          <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
+            <label htmlFor="od-note" className="card-title">Poznámka na report</label>
+            <textarea id="od-note" className="input" rows={4} maxLength={5000} key={order.report_note ?? ''} defaultValue={order.report_note ?? ''} disabled={act.busy || locked}
+              placeholder="Čo sa robilo, čo sme zistili, čo odporúčame nabudúce…"
+              onBlur={e => { const v = e.target.value.trim(); if (v !== (order.report_note ?? '')) void act.run(() => actions.updateOrder(order.id, { report_note: v || null })) }} />
+            <div className="muted" style={{ fontSize: 11 }}>Zákazník ju uvidí na reporte. Keď ostane prázdna, na reporte nebude.</div>
+          </Blueprint>
         </div>
 
         <aside className="order-aside order-col">
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 8 }}>
             <span className="card-kicker">Súčet</span>
-            <div className="r-line" style={{ fontSize: 13 }}><span>Práca · {t.labor_billing === 'norm' ? `${hoursSk(t.norm_seconds / 3600)} NH` : hm(t.seconds)} × {rate} €/h</span><span>{eur(t.labor)}</span></div>
+            <div className="r-line" style={{ fontSize: 13 }}><span>Práca · {t.labor_billing === 'norm' ? `${hoursSk(t.norm_seconds / 3600)} NH` : hm(t.seconds)} × {t.rate} €/h</span><span>{eur(t.labor)}</span></div>
             {t.labor_billing === 'norm' && <div className="r-line muted" style={{ fontSize: 12 }}><span>Skutočný čas {hm(t.seconds)}</span><span>{eur(t.labor_actual)}</span></div>}
-            <div className="r-line" style={{ fontSize: 13 }}><span>Diely · {order.parts_pricing === 'nc' ? 'NC' : 'MOC'} (na reporte)</span><span>{eur(t.parts)}</span></div>
+            <div className="r-line" style={{ fontSize: 13 }}><span>Diely · {PRICING_LABEL[order.parts_pricing]} (na reporte)</span><span>{eur(t.parts)}</span></div>
             {/* Only for orientation: the other price level never enters Spolu. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderLeft: '2px solid var(--color-divider)', paddingLeft: 8 }}>
-              {order.parts_pricing === 'nc'
-                ? <div className="r-line muted" style={{ fontSize: 12 }}><span>V MOC by diely stáli</span><span>{eur(t.parts_retail)}</span></div>
-                : <>
-                  <div className="r-line muted" style={{ fontSize: 12 }}><span>Nákup dielov · NC</span><span>{eur(t.parts_cost)}</span></div>
-                  <div className="r-line muted" style={{ fontSize: 12 }}><span>Marža na dieloch</span><span>{eur(t.parts - t.parts_cost)}</span></div>
-                </>}
-              <span className="muted" style={{ fontSize: 11 }}>len pre info, do súčtu sa neráta</span>
+              {order.parts_pricing !== 'moc' && <div className="r-line muted" style={{ fontSize: 12 }}><span>V MOC by diely stáli</span><span>{eur(t.parts_retail)}</span></div>}
+              {order.parts_pricing !== 'nc' && <div className="r-line muted" style={{ fontSize: 12 }}><span>Nákup dielov · NC</span><span>{eur(t.parts_cost)}</span></div>}
+              {(order.parts_pricing !== 'nc' || t.parts_margin_adjustment !== 0) && (
+                <MarginEdit computed={t.parts - t.parts_cost} adjustment={order.parts_margin_adjustment} locked={locked} busy={act.busy}
+                  onSave={v => act.run(() => actions.updateOrder(order.id, { parts_margin_adjustment: v }))} />
+              )}
+              <span className="muted" style={{ fontSize: 11 }}>{t.parts_margin_adjustment ? 'zákazník platí to isté, upravená marža sa ráta do zárobku' : 'len pre info, do súčtu sa neráta'}</span>
             </div>
             <div className="r-line" style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 8, alignItems: 'baseline' }}>
               <span className="hd" style={{ fontSize: 16 }}>Spolu</span>
@@ -248,7 +257,7 @@ export default function OrderDetail() {
               <input id="od-cemail" className="input" type="email" key={order.customer.email ?? ''} defaultValue={order.customer.email ?? ''} placeholder="meno@email.sk" disabled={act.busy}
                 onBlur={e => { const v = e.target.value.trim(); if (v !== (order.customer.email ?? '')) void act.run(() => actions.updateOrder(order.id, { customer: { email: v || null } })) }} />
             </div>
-            <div className="muted" style={{ fontSize: 11 }}>Zákazník sa ukladá k autu – pri ďalšej návšteve sa podľa ŠPZ/VIN predvyplní.</div>
+            <div className="muted" style={{ fontSize: 11 }}>Zákazník sa ukladá k autu – pri ďalšej návšteve sa podľa ŠPZ/VIN predvyplní. Nové meno platí pre túto zákazku a ďalšie návštevy auta, hotové reporty ostanú na pôvodné meno; telefón a e-mail sa zákazníkovi upravia všade.</div>
           </Blueprint>
 
           <Blueprint className="card" style={{ padding: '16px 18px', gap: 8 }}>

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Services\Earnings;
-use App\Services\Settings;
+use App\Services\StatsInsights;
 use App\Support\StatsPeriod;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +23,6 @@ class StatsController extends Controller
         ]);
 
         $now = CarbonImmutable::now();
-        $rate = Settings::rate();
         $current = StatsPeriod::containing($data['period'] ?? 'month', isset($data['date']) ? CarbonImmutable::parse($data['date']) : $now);
 
         // The trend ends with the chosen period: 12 weeks or months, 5 years.
@@ -45,19 +44,20 @@ class StatsController extends Controller
             'end' => $current->end->toDateString(),
             'previous_date' => $previous->start->toDateString(),
             'next_date' => $current->end->lt($now) ? $current->next()->start->toDateString() : null,
-            'current' => Earnings::of($within($current), $rate, $now),
+            'current' => Earnings::of($within($current), $now),
             // Closed in the period but not paid yet: it moves into zárobok of the period it gets paid in.
-            'pending' => Earnings::of(Earnings::unpaidClosedBetween($current->start, $current->end), $rate, $now),
-            'previous' => ['label' => $previous->label()] + Earnings::of($within($previous), $rate, $now),
+            'pending' => Earnings::of(Earnings::unpaidClosedBetween($current->start, $current->end), $now),
+            'previous' => ['label' => $previous->label()] + Earnings::of($within($previous), $now),
             'year_earlier' => $yearEarlier
-                ? ['label' => $yearEarlier->label()] + Earnings::of(Earnings::paidBetween($yearEarlier->start, $yearEarlier->end), $rate, $now)
+                ? ['label' => $yearEarlier->label()] + Earnings::of(Earnings::paidBetween($yearEarlier->start, $yearEarlier->end), $now)
                 : null,
             'trend' => array_map(fn (StatsPeriod $p) => [
                 'label' => $p->short(),
                 'title' => $p->label(),
                 'date' => $p->start->toDateString(),
-            ] + Earnings::of($within($p), $rate, $now), $periods),
-            'orders' => $within($current)->map(fn (WorkOrder $o) => Earnings::line($o, $rate, $now))->values(),
+            ] + Earnings::of($within($p), $now), $periods),
+            'orders' => $within($current)->map(fn (WorkOrder $o) => Earnings::line($o, $now))->values(),
+            'insights' => StatsInsights::of($current, $within($current)->values(), $now),
         ]);
     }
 }

@@ -3,11 +3,13 @@
 namespace Tests\Feature\Api;
 
 use App\Models\Car;
+use App\Models\CarMake;
 use App\Models\Client;
 use App\Models\ClientInvite;
 use App\Models\ServiceRequest;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Services\CarCatalog;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -122,6 +124,22 @@ class ClientPortalTest extends TestCase
 
         $this->postJson("/api/v1/requests/{$request->id}/accept")->assertUnprocessable();
         $this->postJson("/api/v1/requests/{$request->id}/reject")->assertUnprocessable();
+    }
+
+    public function test_a_make_typed_without_accents_is_filed_under_the_catalogue_one_instead_of_a_duplicate(): void
+    {
+        $catalogue = CarCatalog::resolve('Škoda', 'Octavia III', '2.0 TDI');
+        $makes = CarMake::query()->count();
+        $request = ServiceRequest::factory()->create(['make' => 'skoda', 'model' => 'OCTAVIA  III', 'engine' => '2.0 tdi']);
+        Sanctum::actingAs($this->owner());
+
+        $orderId = $this->postJson("/api/v1/requests/{$request->id}/accept")->assertOk()->json('order_id');
+
+        $car = WorkOrder::query()->findOrFail($orderId)->car;
+        $this->assertSame(['Škoda', 'Octavia III', '2.0 TDI'], [$car->make, $car->model, $car->engine]);
+        $this->assertSame($catalogue['model']->id, $car->car_model_id);
+        $this->assertSame($catalogue['engine']->id, $car->car_engine_id);
+        $this->assertSame($makes, CarMake::query()->count(), 'the production unique index would refuse "Skoda" next to "Škoda"');
     }
 
     public function test_a_known_plate_keeps_its_car_and_the_client_keeps_one_customer_record(): void

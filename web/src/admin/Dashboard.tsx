@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useDashboard, useOrders, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
+import { PHONE, useMediaQuery } from '../lib/useMediaQuery'
 import { byPlan, firstName, isRunning, totalsOf, carName } from '../lib/calc'
 import { eur, hm, hoursSk, planLabel } from '../lib/format'
 import { plural } from '../lib/text'
@@ -10,6 +11,7 @@ import Blueprint, { Corners } from '../components/Blueprint'
 import EarningsSplit from '../components/EarningsSplit'
 import StatusTag from '../components/StatusTag'
 import NewJobDialog from '../components/NewJobDialog'
+import OrderList from '../components/OrderList'
 
 const PERIODS: [Period, string][] = [['week', 'Týždeň'], ['month', 'Mesiac'], ['year', 'Rok']]
 
@@ -21,6 +23,7 @@ export default function Dashboard() {
   const settings = useSettings()
   const [newOpen, setNewOpen] = useState(false)
   const nav = useNavigate()
+  const phone = useMediaQuery(PHONE)
 
   const d = dash.data
   const list = orders.data ?? []
@@ -62,7 +65,7 @@ export default function Dashboard() {
 
       <div className="dash-mid">
         <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '4px 8px', flexWrap: 'wrap' }}>
             <span className="card-title">Zárobok a diely</span><span className="card-meta">plná = zárobok · obrys = nákup dielov · podľa dňa úhrady</span>
           </div>
           <div className="bars" role="img" aria-label="Zárobok a nákup dielov po obdobiach">
@@ -94,6 +97,7 @@ export default function Dashboard() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px 0' }}>
           <span className="card-title">Otvorené zákazky</span><Link to="/admin/zakazky" style={{ fontSize: 13 }}>Všetky zákazky →</Link>
         </div>
+        {phone ? <OrderList orders={open} rate={rate} now={now} billing={billing} empty="Žiadne otvorené zákazky." /> : (
         <div style={{ overflowX: 'auto' }}>
           <table className="table" style={{ marginTop: 6 }}>
             <thead><tr><th>#</th><th>Auto · zákazník</th><th>Plán</th><th>Mechanik</th><th>Čas</th><th>Nákup dielov · NC</th><th>Spolu</th><th>Stav</th><th></th></tr></thead>
@@ -122,6 +126,7 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+        )}
       </Blueprint>
 
       <NewJobDialog open={newOpen} onClose={() => setNewOpen(false)} onCreated={id => nav(`/admin/zakazky/${id}`)} />

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\PartsPricing;
 use App\Models\DiagCode;
 use App\Models\OrderOperation;
 use App\Models\Part;
@@ -30,9 +31,8 @@ class WorkOrderResource extends JsonResource
     public function toArray(Request $request): array
     {
         $now = now();
-        $rate = Settings::rate();
         $mode = Settings::reportLabor();
-        $totals = OrderTotals::compute($this->resource, $rate, $now);
+        $totals = OrderTotals::compute($this->resource, $now);
         $split = LaborSplit::seconds($this->resource, $now)['by_op'];
         $amounts = LaborSplit::amounts($this->resource, $totals, $split);
 
@@ -43,7 +43,10 @@ class WorkOrderResource extends JsonResource
             'parts_pricing' => $this->parts_pricing->value,
             'total_original' => $this->total_original !== null ? (float) $this->total_original : null,
             'total_override' => $this->total_override !== null ? (float) $this->total_override : null,
+            'parts_margin_adjustment' => $this->parts_margin_adjustment !== null ? (float) $this->parts_margin_adjustment : null,
+            'hourly_rate' => $this->resource->rate(),
             'summary' => $this->summary,
+            'report_note' => $this->report_note,
             'lift' => $this->lift,
             'received_at' => $this->received_at?->toISOString(),
             'planned_at' => $this->planned_at?->toISOString(),
@@ -142,7 +145,7 @@ class WorkOrderResource extends JsonResource
     private static function publicView(array $data, string $mode): array
     {
         $times = $mode === 'time';
-        $nc = $data['parts_pricing'] === 'nc';
+        $pricing = PartsPricing::from($data['parts_pricing']);
 
         $data['summary'] = '';
         $data['lift'] = null;
@@ -151,9 +154,12 @@ class WorkOrderResource extends JsonResource
         $data['planned_minutes'] = null;
         $data['total_original'] = null;
         $data['total_override'] = null;
+        $data['parts_margin_adjustment'] = null;
+        // The rate goes out only when the report prints "× 25 €/h".
+        $data['hourly_rate'] = $times ? $data['hourly_rate'] : null;
         $data['work_entries'] = [];
         // The customer sees the price he pays per part, whichever price list the order bills.
-        $data['parts'] = collect($data['parts'])->map(fn (array $p) => [...$p, 'price' => $nc ? ($p['purchase_price'] ?? $p['price']) : $p['price'], 'purchase_price' => null])->values();
+        $data['parts'] = collect($data['parts'])->map(fn (array $p) => [...$p, 'price' => $pricing->price($p['price'], $p['purchase_price']), 'purchase_price' => null])->values();
         $data['operations'] = collect($data['operations'])->map(fn (array $o) => [
             'id' => $o['id'], 'operation_id' => null, 'name' => $o['name'], 'done' => $o['done'],
             'norm_minutes' => $times ? $o['norm_minutes'] : 0, 'seconds' => 0,

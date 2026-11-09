@@ -94,7 +94,7 @@ export function usePublicReport(token: string) {
   })
 }
 
-export interface OrderPatch { status?: OrderStatus; summary?: string; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; planned_at?: string | null; planned_minutes?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null }; car?: { make?: string; model?: string; engine?: string | null; plate?: string; vin?: string | null } }
+export interface OrderPatch { status?: OrderStatus; summary?: string; report_note?: string | null; lift?: string | null; mechanic_id?: number | null; parts_pricing?: PartsPricing; total_override?: number | null; parts_margin_adjustment?: number | null; planned_at?: string | null; planned_minutes?: number | null; km?: number; customer?: { name?: string; phone?: string | null; email?: string | null }; car?: { make?: string; model?: string; engine?: string | null; plate?: string; vin?: string | null } }
 
 /** Every write returns the fresh order, which replaces it in both caches. */
 export function useOrderActions() {

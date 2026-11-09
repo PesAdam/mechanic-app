@@ -72,8 +72,9 @@ export default defineConfig(({ mode }) => {
           // The OCR engine (several MB) is fetched on the first scan, not with every install of the app.
           globIgnores: ['tesseract/**'],
           navigateFallback: '/index.html',
-          // API and uploaded files are never the SPA shell.
-          navigateFallbackDenylist: [/^\/api\//, /^\/storage\//],
+          // API and uploaded files are never the SPA shell. Portal pages come from the server, which names the
+          // portal's own manifest in them (start /portal), so "add to home screen" there never starts at /m.
+          navigateFallbackDenylist: [/^\/api\//, /^\/storage\//, /^\/portal(\/|$)/, /^\/pozvanka\//],
           cleanupOutdatedCaches: true,
           runtimeCaching: [
             {

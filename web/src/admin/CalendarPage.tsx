@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Link } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useOrderActions, useOrders } from '../data/queries'
@@ -29,6 +29,15 @@ export default function CalendarPage() {
   const today = isoDate(new Date(now))
   const [monday, setMonday] = useState(() => mondayOfDay(today))
   const [draft, setDraft] = useState<PlanDraft | null>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+
+  // On a phone the week is wider than the screen: open on today (Monday for another week).
+  useEffect(() => {
+    const el = scroller.current
+    if (!el || el.scrollWidth <= el.clientWidth) return
+    const col = el.querySelector<HTMLElement>('.cal-day.today')
+    el.scrollLeft = col ? Math.max(0, col.offsetLeft - 44) : 0
+  }, [monday])
 
   const days = useMemo(() => Array.from({ length: DAYS }, (_, i) => addDays(monday, i)), [monday])
   const planned = useMemo(() => list.filter(o => o.planned_at && days.includes(dateOf(o.planned_at))), [list, days])
@@ -60,9 +69,9 @@ export default function CalendarPage() {
 
       <div className="cal">
         <Blueprint className="card" style={{ padding: 0, gap: 0 }}>
-          <div className="cal-scroll">
+          <div className="cal-scroll" ref={scroller}>
             <div className="cal-grid" style={{ '--hour': `${HOUR_PX}px` } as CSSProperties}>
-              <div />
+              <div className="cal-corner" />
               {days.map(d => {
                 const load = planned.filter(o => dateOf(o.planned_at as string) === d).reduce((a, o) => a + plannedMinutes(o), 0)
                 return (
@@ -72,7 +81,7 @@ export default function CalendarPage() {
                   </div>
                 )
               })}
-              <div>
+              <div className="cal-hours">
                 {Array.from({ length: DAY_END - DAY_START }, (_, i) => <div key={i} className="cal-hour">{DAY_START + i}:00</div>)}
               </div>
               {days.map(d => (

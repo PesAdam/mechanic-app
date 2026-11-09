@@ -2,7 +2,12 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\RequestStatus;
+use App\Models\Car;
+use App\Models\Customer;
+use App\Models\Operation;
 use App\Models\Part;
+use App\Models\ServiceRequest;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WorkEntry;
@@ -109,6 +114,70 @@ class StatsControllerTest extends TestCase
             ->assertJsonPath('year_earlier', null)
             ->assertJsonCount(5, 'trend')
             ->assertJsonPath('trend.0.label', '2022');
+    }
+
+    public function test_insights_break_the_month_down_by_day_job_car_customer_size_payment_and_working_hours(): void
+    {
+        $this->travelTo('2026-08-01 10:00:00');
+        Setting::set('hourly_rate', 25);
+        $regular = Customer::factory()->create(['name' => 'Kubišta']);
+        WorkOrder::factory()->create(['customer_id' => $regular->id]);
+        $this->travelTo('2026-10-24 12:00:00');
+        Sanctum::actingAs(User::factory()->create(['role' => 'owner']));
+        $peter = User::factory()->create(['name' => 'Peter']);
+        $jano = User::factory()->create(['name' => 'Jano']);
+
+        // Paid two days after closing: an oil change (norm 1 h, clocked 2 h on Monday morning) and a part with 15 € margin.
+        $oil = WorkOrder::factory()->create(['customer_id' => $regular->id, 'status' => 'done', 'received_at' => '2026-10-01 08:00:00', 'closed_at' => '2026-10-03 16:00:00', 'paid_at' => '2026-10-05 17:00:00']);
+        $job = $oil->operations()->create(['operation_id' => Operation::factory()->create(['name' => 'Výmena oleja', 'category' => 'servis'])->id, 'name' => 'Výmena oleja', 'norm_minutes' => 60, 'sort' => 0, 'done' => true]);
+        WorkEntry::factory()->for($oil)->for($peter)->create(['order_operation_id' => $job->id, 'started_at' => '2026-10-05 08:00:00', 'ended_at' => '2026-10-05 10:00:00']);
+        Part::factory()->for($oil)->create(['price' => 45, 'purchase_price' => 30]);
+
+        // A new customer's BMW, paid on the spot: one hour on Tuesday afternoon, no jobs.
+        $newcomer = Customer::factory()->create();
+        $bmw = WorkOrder::factory()->create(['customer_id' => $newcomer->id, 'car_id' => Car::factory()->create(['customer_id' => $newcomer->id, 'make' => 'BMW'])->id, 'status' => 'done', 'received_at' => '2026-10-20 15:30:00', 'closed_at' => '2026-10-20 15:30:00', 'paid_at' => '2026-10-20 15:30:00']);
+        WorkEntry::factory()->for($bmw)->for($jano)->create(['started_at' => '2026-10-20 14:00:00', 'ended_at' => '2026-10-20 15:00:00']);
+
+        WorkOrder::factory()->create(['status' => 'unpaid', 'closed_at' => '2026-10-10 12:00:00']);
+        ServiceRequest::factory()->create(['status' => RequestStatus::Accepted, 'created_at' => '2026-10-12 09:00:00']);
+
+        $this->getJson('/api/v1/stats?period=month&date=2026-10-24')->assertOk()
+            ->assertJsonPath('insights.averages.order_billed', 60)
+            ->assertJsonPath('insights.averages.order_earnings', 45)
+            ->assertJsonPath('insights.averages.biggest.number', $oil->number)
+            ->assertJsonCount(31, 'insights.breakdown')
+            ->assertJsonPath('insights.breakdown.4.labor', 50)
+            ->assertJsonPath('insights.breakdown.4.parts_margin', 15)
+            ->assertJsonPath('insights.breakdown.19.earnings', 25)
+            ->assertJsonPath('insights.jobs.categories.0', ['key' => 'servis', 'labor' => 50, 'jobs' => 1])
+            ->assertJsonPath('insights.jobs.categories.1', ['key' => 'bez', 'labor' => 25, 'jobs' => 1])
+            ->assertJsonPath('insights.jobs.top.0', ['name' => 'Výmena oleja', 'count' => 1, 'labor' => 50, 'avg_minutes' => 120, 'norm_minutes' => 60])
+            ->assertJsonPath('insights.jobs.efficiency', 50)
+            ->assertJsonPath('insights.makes.0', ['make' => 'Škoda', 'orders' => 1, 'earnings' => 65])
+            ->assertJsonPath('insights.makes.1.make', 'BMW')
+            ->assertJsonPath('insights.customers.count', 2)
+            ->assertJsonPath('insights.customers.new', 1)
+            ->assertJsonPath('insights.customers.returning', 1)
+            ->assertJsonPath('insights.customers.top.0.name', 'Kubišta')
+            ->assertJsonPath('insights.sizes.0.count', 1)
+            ->assertJsonPath('insights.sizes.1.count', 1)
+            ->assertJsonPath('insights.payment.avg_days', 1)
+            ->assertJsonPath('insights.payment.bands.0.count', 1)
+            ->assertJsonPath('insights.payment.bands.1.count', 1)
+            ->assertJsonPath('insights.work.hours', 3)
+            ->assertJsonPath('insights.work.mechanics.0', ['id' => $peter->id, 'name' => 'Peter', 'hours' => 2, 'orders' => 1])
+            ->assertJsonPath('insights.work.weekdays.0.hours', 2)
+            ->assertJsonPath('insights.work.weekdays.1.hours', 1)
+            ->assertJsonPath('insights.work.heatmap.rows.0.cells.2', 1)
+            ->assertJsonPath('insights.work.heatmap.rows.0.cells.3', 1)
+            ->assertJsonPath('insights.work.heatmap.rows.1.cells.8', 1)
+            ->assertJsonPath('insights.owed.count', 1)
+            ->assertJsonPath('insights.owed.oldest_days', 14)
+            ->assertJsonPath('insights.owed.bands.1.count', 1)
+            ->assertJsonPath('insights.year.current.9', 90)
+            ->assertJsonPath('insights.year.current.10', null)
+            ->assertJsonPath('insights.year.previous.11', 0)
+            ->assertJsonPath('insights.requests', ['count' => 1, 'accepted' => 1, 'rejected' => 0, 'waiting' => 0]);
     }
 
     public function test_unknown_period_is_rejected(): void

@@ -57,19 +57,19 @@ class DashboardController extends Controller
         foreach ($paid as $o) {
             $i = $bucketOf(CarbonImmutable::instance($o->paid_at));
             if (isset($bars[$i])) {
-                $line = Earnings::line($o, $rate, $now);
+                $line = Earnings::line($o, $now);
                 $bars[$i]['earnings'] += $line['earnings'];
                 $bars[$i]['parts'] += $line['parts_cost'];
             }
         }
 
-        $money = Earnings::of($paid, $rate, $now);
-        $billed = Earnings::of($closed, $rate, $now);
-        $pending = Earnings::of($closed->where('status', OrderStatus::Unpaid), $rate, $now);
+        $money = Earnings::of($paid, $now);
+        $billed = Earnings::of($closed, $now);
+        $pending = Earnings::of($closed->where('status', OrderStatus::Unpaid), $now);
         $withNorms = $closed->filter(fn (WorkOrder $o) => $o->operations->isNotEmpty());
         $normSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => (int) $o->operations->sum('norm_minutes') * 60);
-        $actualSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['seconds']);
-        $due = $unpaid->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $rate, $now)['grand']);
+        $actualSeconds = (int) $withNorms->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $now)['seconds']);
+        $due = $unpaid->sum(fn (WorkOrder $o) => OrderTotals::compute($o, $now)['grand']);
 
         $mechanics = User::query()->where('is_active', true)->orderBy('name')->get()
             ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name, 'hours' => round(($byUser[$u->id] ?? 0) / 3600, 1)])
@@ -86,6 +86,7 @@ class DashboardController extends Controller
                 'labor' => $money['labor'],
                 'parts_cost' => $money['parts_cost'],
                 'parts_margin' => $money['parts_margin'],
+                'parts_adjustment' => $money['parts_adjustment'],
                 'discount' => $money['discount'],
                 'orders' => $money['orders'],
                 // Closed in the period, money not in yet: becomes zárobok on the day it is paid.

@@ -5,7 +5,7 @@ import Dashboard from './Dashboard'
 import type { DashboardData } from '../lib/types'
 
 const KPI: DashboardData['kpi'] = {
-  earnings: 320, labor: 300, parts_cost: 60, parts_margin: 30, discount: 10, orders: 2,
+  earnings: 320, labor: 300, parts_cost: 60, parts_margin: 30, parts_adjustment: 0, discount: 10, orders: 2,
   pending: { orders: 0, labor: 0, parts_margin: 0, earnings: 0 },
   billed: 380, billed_parts_cost: 60, billed_orders: 2,
   hours: 9, paid: 380, paid_count: 2, due: 0, due_count: 0, norm_hours: 0, efficiency: null,

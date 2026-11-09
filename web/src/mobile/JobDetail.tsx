@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useOrder, useOrderActions, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
 import { useAction } from '../lib/useAction'
-import { defaultStartOp, firstName, isClosed, isOverdue, isPaid, isRunning, newPhotos, normClass, opOf, opSeconds, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
+import { PRICING_LABEL, defaultStartOp, firstName, isClosed, isOverdue, isPaid, isRunning, newPhotos, normClass, opOf, opSeconds, runningEntry, runningEntryOf, sessionSeconds, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, hms, km, planLabel, timeOf } from '../lib/format'
 import { lowerFirst, plural } from '../lib/text'
 import type { Part } from '../lib/types'
@@ -114,7 +114,7 @@ export default function JobDetail() {
               {/* Clocked against a job: the dial is that job's time, read against its norm from across the bay. */}
               <div className="kicker" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><i className="dot live" />Robím · {runningOp.name}</div>
               <div className={`hd num ${normClass(opSeconds(order, runningOp.id, now), runningOp.norm_minutes * 60)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(opSeconds(order, runningOp.id, now))}</div>
-              <div style={{ fontSize: 12 }}>Norma {hm(runningOp.norm_minutes * 60)} · <NormBadge seconds={opSeconds(order, runningOp.id, now)} normSeconds={runningOp.norm_minutes * 60} rate={rate} /></div>
+              <div style={{ fontSize: 12 }}>Norma {hm(runningOp.norm_minutes * 60)} · <NormBadge seconds={opSeconds(order, runningOp.id, now)} normSeconds={runningOp.norm_minutes * 60} rate={t.rate} /></div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Dnes na aute {hm(session)} · celkom {hm(t.seconds)} · {eur(t.labor)}</div>
               <div style={{ fontSize: 13, marginTop: 8 }}><button type="button" className="linkbtn" onClick={() => mine && setAssignFor(mine.id)}>zmeniť úkon</button></div>
             </>
@@ -125,7 +125,7 @@ export default function JobDetail() {
               </div>
               <div className={`hd num ${normClass(t.seconds, t.norm_seconds)}`} style={{ fontSize: 64, lineHeight: 1, letterSpacing: '-.02em', margin: '6px 0 4px' }}>{hms(session)}</div>
               <div className="muted" style={{ fontSize: 12 }}>Celkom na aute {hm(t.seconds)} · {eur(t.labor)}</div>
-              {t.norm_seconds > 0 && <div style={{ fontSize: 12, marginTop: 4 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} /></div>}
+              {t.norm_seconds > 0 && <div style={{ fontSize: 12, marginTop: 4 }}>Norma {hm(t.norm_seconds)} · <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={t.rate} /></div>}
               {mine && !closed && (
                 <div style={{ fontSize: 13, marginTop: 8 }}>Čas bez úkonu{order.operations.length ? <> · <button type="button" className="linkbtn" onClick={() => setAssignFor(mine.id)}>priradiť k úkonu</button></> : null}</div>
               )}
@@ -154,14 +154,14 @@ export default function JobDetail() {
         </Blueprint>
 
         <section style={{ display: 'flex', flexDirection: 'column' }}>
-          <OperationsSection order={order} closed={closed} now={now} rate={rate} />
+          <OperationsSection order={order} closed={closed} now={now} rate={t.rate} />
         </section>
 
         <section>
           <div className="sec-head"><h4 style={{ margin: 0 }}>Diely</h4>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {!closed && <PricingSwitch order={order} compact disabled={act.busy} />}
-              <span className="muted" style={{ fontSize: 13 }}>{eur(t.parts)}{closed ? ` · ${order.parts_pricing === 'nc' ? 'NC' : 'MOC'}` : ''}</span>
+              <span className="muted" style={{ fontSize: 13 }}>{eur(t.parts)}{closed ? ` · ${PRICING_LABEL[order.parts_pricing]}` : ''}</span>
             </span>
           </div>
           <div>

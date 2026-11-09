@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { useStats } from '../data/queries'
@@ -8,6 +8,7 @@ import { plural } from '../lib/text'
 import type { Earnings, Period, StatsData } from '../lib/types'
 import Blueprint from '../components/Blueprint'
 import EarningsSplit from '../components/EarningsSplit'
+import { InsightCharts, InsightTiles, Kpi } from './StatsInsights'
 
 const PERIODS: [Period, string][] = [['week', 'Týždeň'], ['month', 'Mesiac'], ['year', 'Rok']]
 const TREND: Record<Period, string> = { week: 'posledných 12 týždňov', month: 'posledných 12 mesiacov', year: 'posledných 5 rokov' }
@@ -72,6 +73,8 @@ export default function StatsPage() {
         <Kpi k="Zárobok na hodinu" v={c ? (c.per_hour === null ? '—' : `${eur(c.per_hour)}/h`) : '…'} m={c && `${hoursSk(c.hours)} pri autách`} />
       </div>
 
+      {s?.insights && <InsightTiles i={s.insights} />}
+
       <div className="dash-mid">
         <Blueprint className="card" style={{ padding: '16px 18px', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
@@ -104,11 +107,14 @@ export default function StatsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderLeft: '2px solid var(--color-divider)', paddingLeft: 8, marginTop: 4 }}>
               <div className="r-line muted" style={{ fontSize: 12 }}><span>Zaplatené zákazníkmi</span><span>{eur(c.billed)}</span></div>
               <div className="r-line muted" style={{ fontSize: 12 }}><span>− nákup dielov</span><span>{eur(c.parts_cost)}</span></div>
+              {c.parts_adjustment !== 0 && <div className="r-line muted" style={{ fontSize: 12 }}><span>{c.parts_adjustment < 0 ? '− odvod z marže' : '+ úprava marže'}</span><span>{eur(Math.abs(c.parts_adjustment))}</span></div>}
               <span className="muted" style={{ fontSize: 11 }}>Diely sa do zárobku rátajú len maržou – nákup zaplatíte dodávateľovi.</span>
             </div>
           </>}
         </Blueprint>
       </div>
+
+      {s?.insights && <InsightCharts i={s.insights} period={period} />}
 
       <Blueprint className="card" style={{ padding: 0, gap: 0 }}>
         <div style={{ padding: '12px 16px 0' }}><span className="card-title">Porovnanie</span></div>
@@ -154,7 +160,7 @@ export default function StatsPage() {
                   <td className="nowrap muted">{eur(o.parts_cost)}</td>
                   <td className="nowrap">{o.discount ? `${o.discount > 0 ? '−' : '+'}${eur(Math.abs(o.discount))}` : '—'}</td>
                   <td className="nowrap">{eur(o.billed)}</td>
-                  <td className="nowrap"><b>{eur(o.earnings)}</b></td>
+                  <td className="nowrap"><b>{eur(o.earnings)}</b>{o.parts_adjustment !== 0 && <div className="muted" style={{ fontSize: 11 }}>{o.parts_adjustment < 0 ? `odvod −${eur(-o.parts_adjustment)}` : `úprava +${eur(o.parts_adjustment)}`}</div>}</td>
                 </tr>
               ))}
               {s && !s.orders.length && <tr><td colSpan={10} className="muted">V tomto období nebola zaplatená žiadna zákazka.</td></tr>}
@@ -176,20 +182,10 @@ function Change({ cur, prev, fmt, good }: { cur: number | null; prev: number | n
   return <span><span className={cls} style={{ fontWeight: 600 }}>{diff > 0 ? '▲ ' : diff < 0 ? '▼ ' : ''}{text}</span>{fmt && <span className="muted"> · predtým {fmt(prev)}</span>}</span>
 }
 
-function Kpi({ k, v, m }: { k: string; v: string; m?: ReactNode }) {
-  return (
-    <Blueprint className="card" style={{ padding: '14px 16px', gap: 4 }}>
-      <span className="card-kicker">{k}</span>
-      <div className="kpi-v">{v}</div>
-      <span className="card-meta">{m || ' '}</span>
-    </Blueprint>
-  )
-}
-
 function exportCsv(s: StatsData) {
   downloadCsv(`statistika-${s.start}_${s.end}.csv`, [
-    ['Číslo', 'Uzavreté', 'Uhradené', 'Auto', 'ŠPZ', 'Zákazník', 'Hodiny', 'Práca €', 'Diely fakturované €', 'Nákup dielov €', 'Zľava €', 'Zaplatené €', 'Zárobok €'],
-    ...s.orders.map(o => [o.number, o.closed_at ? skDate(dateOf(o.closed_at)) : '', o.paid_at ? skDate(dateOf(o.paid_at)) : '', o.car, o.plate, o.customer, o.hours, o.labor, o.parts_billed, o.parts_cost, o.discount, o.billed, o.earnings]),
-    ['Spolu', s.label, '', '', '', '', s.current.hours, s.current.labor, s.current.parts_billed, s.current.parts_cost, s.current.discount, s.current.billed, s.current.earnings],
+    ['Číslo', 'Uzavreté', 'Uhradené', 'Auto', 'ŠPZ', 'Zákazník', 'Hodiny', 'Práca €', 'Diely fakturované €', 'Nákup dielov €', 'Úprava marže €', 'Zľava €', 'Zaplatené €', 'Zárobok €'],
+    ...s.orders.map(o => [o.number, o.closed_at ? skDate(dateOf(o.closed_at)) : '', o.paid_at ? skDate(dateOf(o.paid_at)) : '', o.car, o.plate, o.customer, o.hours, o.labor, o.parts_billed, o.parts_cost, o.parts_adjustment, o.discount, o.billed, o.earnings]),
+    ['Spolu', s.label, '', '', '', '', s.current.hours, s.current.labor, s.current.parts_billed, s.current.parts_cost, s.current.parts_adjustment, s.current.discount, s.current.billed, s.current.earnings],
   ])
 }

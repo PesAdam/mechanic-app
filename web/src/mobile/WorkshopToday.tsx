@@ -131,7 +131,7 @@ function JobCard({ order, now, rate, billing }: { order: Order; now: number; rat
             <span>Čas <b>{hm(t.seconds)}</b></span>
             <span>Diely <b>{eur(t.parts)}</b></span>
             <span>Fotky <b>{order.photos.length}</b></span>
-            {t.norm_seconds > 0 && <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={rate} />}
+            {t.norm_seconds > 0 && <NormBadge seconds={t.seconds} normSeconds={t.norm_seconds} rate={t.rate} />}
             {order.diagnostic && <span className="tag tag-accent" style={{ marginLeft: 'auto' }}>{order.diagnostic.file_url ? 'PDF diag.' : 'Diag.'}</span>}
           </div>
         </>

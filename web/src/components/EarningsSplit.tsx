@@ -4,7 +4,7 @@ import { eur } from '../lib/format'
 import { plural } from '../lib/text'
 import type { Earnings, Pending } from '../lib/types'
 
-type Money = Pick<Earnings, 'labor' | 'parts_margin' | 'parts_cost' | 'discount' | 'earnings' | 'orders'>
+type Money = Pick<Earnings, 'labor' | 'parts_margin' | 'parts_adjustment' | 'parts_cost' | 'discount' | 'earnings' | 'orders'>
 
 interface Props {
   /** Orders paid in the period: zárobok is money in hand. */
@@ -18,6 +18,9 @@ interface Props {
 /** Zárobok the way the owner counts it: what the labor brought, what stays from the parts (billed − NC), and both together. */
 export default function EarningsSplit({ money: m, pending, changes }: Props) {
   const adjusted = !m?.discount ? '' : m.discount > 0 ? ` − zľavy ${eur(m.discount)}` : ` + navýšenie ${eur(-m.discount)}`
+  // Úpravy of the margin (a share passed on to someone) sit inside parts_margin; billed is what is left without them.
+  const partsAdj = m?.parts_adjustment ?? 0
+  const passedOn = !partsAdj ? '' : partsAdj < 0 ? ` − odvod ${eur(-partsAdj)}` : ` + úprava ${eur(partsAdj)}`
   const waits = !!pending?.orders
   // A part billed under its NC makes the waiting margin negative.
   const waiting = (v: number) => (waits && v ? `${v > 0 ? '+' : '−'} ${eur(Math.abs(v))} čaká na platbu` : '')
@@ -25,7 +28,7 @@ export default function EarningsSplit({ money: m, pending, changes }: Props) {
     ['Zárobok z práce', m ? eur(m.labor) : '…',
       m ? (m.orders ? `z ${m.orders} ${plural(m.orders, 'zaplatenej zákazky', 'zaplatených zákaziek', 'zaplatených zákaziek')}` : 'zatiaľ nič nezaplatené') : '',
       waiting(pending?.labor ?? 0), changes?.labor],
-    ['Zárobok z dielov', m ? eur(m.parts_margin) : '…', m ? `účtované ${eur(m.parts_margin + m.parts_cost)} − nákup ${eur(m.parts_cost)}` : '',
+    ['Zárobok z dielov', m ? eur(m.parts_margin) : '…', m ? `účtované ${eur(m.parts_margin - partsAdj + m.parts_cost)} − nákup ${eur(m.parts_cost)}${passedOn}` : '',
       waiting(pending?.parts_margin ?? 0), changes?.parts],
     ['Zárobok spolu', m ? eur(m.earnings) : '…', m ? `práca + diely${adjusted}` : '',
       pending && waits ? `${waiting(pending.earnings) || 'čaká na platbu'} · ${pending.orders} ${plural(pending.orders, 'zákazka', 'zákazky', 'zákaziek')}` : '',

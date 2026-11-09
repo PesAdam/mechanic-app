@@ -45,6 +45,28 @@ class DeploymentTest extends TestCase
         $this->artisan('app:owner', ['email' => 'x@dielna.sk', 'name' => 'X', '--password' => 'short'])->assertFailed();
     }
 
+    public function test_portal_pages_name_the_portal_manifest_so_add_to_home_screen_starts_at_the_portal(): void
+    {
+        $index = public_path('index.html');
+        $original = is_file($index) ? file_get_contents($index) : null;
+        file_put_contents($index, '<!doctype html><meta name="apple-mobile-web-app-title" content="Dielňa"><title>Dielňa · správa autoopráv</title><link rel="manifest" href="/manifest.webmanifest">');
+
+        try {
+            foreach (['/portal', '/portal/prihlasenie', '/pozvanka/abc123'] as $path) {
+                $this->get($path)->assertOk()
+                    ->assertSee('href="/portal.webmanifest"', false)
+                    ->assertSee('<title>Požiadavky do dielne</title>', false)
+                    ->assertSee('content="Požiadavky"', false)
+                    ->assertDontSee('/manifest.webmanifest', false);
+            }
+            foreach (['/m', '/admin', '/portaly'] as $path) {
+                $this->get($path)->assertOk()->assertSee('href="/manifest.webmanifest"', false)->assertDontSee('portal.webmanifest', false);
+            }
+        } finally {
+            $original === null ? unlink($index) : file_put_contents($index, $original);
+        }
+    }
+
     public function test_the_web_app_is_served_for_app_paths_but_never_for_the_api(): void
     {
         $index = public_path('index.html');

@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useOrders, useSettings } from '../data/queries'
 import { useNow } from '../lib/useNow'
-import { byPlan, firstName, isClosed, isOverdue, isRunning, normClass, runningEntry, totalsOf, carName } from '../lib/calc'
+import { PHONE, useMediaQuery } from '../lib/useMediaQuery'
+import { PRICING_LABEL, byPlan, firstName, isClosed, isOverdue, isRunning, normClass, runningEntry, totalsOf, carName } from '../lib/calc'
 import { dateOf, eur, hm, planLabel, skDateShort } from '../lib/format'
 import { plural } from '../lib/text'
 import type { Order } from '../lib/types'
 import Blueprint, { Corners } from '../components/Blueprint'
 import StatusTag from '../components/StatusTag'
 import NewJobDialog from '../components/NewJobDialog'
+import OrderList from '../components/OrderList'
 
 type Filter = 'active' | 'unpaid' | 'done' | 'all'
 const FILTERS: [Filter, string][] = [['active', 'Otvorené'], ['unpaid', 'Čaká na platbu'], ['done', 'Uhradené'], ['all', 'Všetky']]
@@ -32,6 +34,7 @@ export default function Orders() {
   const [query, setQuery] = useState('')
   const [newOpen, setNewOpen] = useState(false)
   const nav = useNavigate()
+  const phone = useMediaQuery(PHONE)
 
   const matches = (o: Order) => {
     if (filter === 'active' && isClosed(o)) return false
@@ -70,15 +73,16 @@ export default function Orders() {
           </div>
           <div className="seg" aria-label="Zoradiť">
             {SORTS.filter(([s]) => sortable[s]).map(([s, label]) => (
-              <label key={s} className="seg-opt" style={{ minHeight: 36 }}><input type="radio" name="o-sort" checked={sort === s} onChange={() => setSort(s)} />{label}</label>
+              <label key={s} className="seg-opt" style={{ minHeight: 36 }}><input type="radio" name="o-sort" checked={sort === s} onChange={() => setSort(s)} />{phone ? label.replace('Podľa ', '') : label}</label>
             ))}
           </div>
-          <input className="input" style={{ width: 240, minHeight: 36 }} placeholder="Hľadať: číslo, ŠPZ, zákazník…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Hľadať" />
+          <input className="input admin-filter" placeholder="Hľadať: číslo, ŠPZ, zákazník…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Hľadať" />
           <button className="btn btn-primary blueprint" style={{ minHeight: 36 }} onClick={() => setNewOpen(true)}><Corners />+ Nová zákazka</button>
         </div>
       </div>
 
       <Blueprint className="card" style={{ padding: 0, gap: 0 }}>
+        {phone ? <OrderList orders={rows} rate={rate} now={now} billing={billing} showClosed={showClosed} empty={orders.isPending ? 'Načítavam…' : 'Nič nezodpovedá filtru.'} /> : (
         <div style={{ overflowX: 'auto' }}>
           <table className="table">
             <thead><tr><th>#</th><th>Prijaté</th>{showClosed && <th title="Kedy bola zákazka uzavretá (vyfakturovaná) a pod tým kedy bola uhradená. Zárobok sa ráta podľa dňa úhrady.">Uzavreté</th>}<th>Plán</th><th>Auto · zákazník</th><th>ŠPZ</th><th>Mechanik</th><th>Čas</th><th>Práca</th><th>Diely</th><th title="Čo zostane z dielov: účtované zákazníkovi mínus nákupná cena (NC)">Marža na dieloch</th><th>Spolu</th><th>Stav</th></tr></thead>
@@ -100,8 +104,8 @@ export default function Orders() {
                     <td className="nowrap">{run ? <span style={{ color: 'var(--color-accent-700)' }}>● {firstName(run.user.name)}</span> : o.mechanic ? firstName(o.mechanic.name) : '—'}</td>
                     <td className={`num ${normClass(t.seconds, t.norm_seconds)}`}>{t.seconds ? hm(t.seconds) : '—'}{t.norm_seconds ? <div className="muted" style={{ fontSize: 10 }}>norma {hm(t.norm_seconds)}</div> : null}</td>
                     <td className="nowrap num">{eur(t.labor)}{t.labor_billing === 'norm' ? <div className="muted" style={{ fontSize: 10 }}>podľa normy</div> : null}</td>
-                    <td className="nowrap num">{eur(t.parts)} <span className="muted" style={{ fontSize: 10 }}>{o.parts_pricing.toUpperCase()}</span></td>
-                    <td className="nowrap num"><MarginCell order={o} retail={t.parts_retail} cost={t.parts_cost} billed={t.parts} /></td>
+                    <td className="nowrap num">{eur(t.parts)} <span className="muted" style={{ fontSize: 10 }}>{PRICING_LABEL[o.parts_pricing]}</span></td>
+                    <td className="nowrap num"><MarginCell order={o} retail={t.parts_retail} cost={t.parts_cost} margin={t.parts_margin} adjustment={t.parts_margin_adjustment} /></td>
                     <td className="nowrap"><b>{eur(t.grand)}</b></td>
                     <td><StatusTag status={o.status} /></td>
                   </tr>
@@ -111,6 +115,7 @@ export default function Orders() {
             </tbody>
           </table>
         </div>
+        )}
       </Blueprint>
 
       <NewJobDialog open={newOpen} onClose={() => setNewOpen(false)} onCreated={id => nav(`/admin/zakazky/${id}`)} />
@@ -118,15 +123,15 @@ export default function Orders() {
   )
 }
 
-/** MOC vs NC of the charged parts; the margin is what the customer pays for parts above their purchase price. */
-function MarginCell({ order, retail, cost, billed }: { order: Order; retail: number; cost: number; billed: number }) {
-  const margin = billed - cost
+/** MOC vs NC of the charged parts; the margin is what the customer pays for parts above their purchase price, after the owner's úprava. */
+function MarginCell({ order, retail, cost, margin, adjustment }: { order: Order; retail: number; cost: number; margin: number; adjustment: number }) {
   const noNc = order.parts.filter(p => p.used && p.purchase_price === null).length
   return (
     <>
       <span className={margin > 0 ? 'norm-ok' : ''}>{eur(margin)}</span>
+      {adjustment !== 0 && <div className="norm-bad" style={{ fontSize: 10 }}>{adjustment < 0 ? `odvod −${eur(-adjustment)}` : `úprava +${eur(adjustment)}`}</div>}
       <div className="muted" style={{ fontSize: 10 }}>MOC {eur(retail)} · NC {eur(cost)}</div>
-      {order.parts_pricing === 'nc' && retail > cost && <div className="muted" style={{ fontSize: 10 }}>účtované v NC</div>}
+      {order.parts_pricing !== 'moc' && retail > cost && <div className="muted" style={{ fontSize: 10 }}>účtované {order.parts_pricing === 'mid' ? 'v strede' : `v ${PRICING_LABEL[order.parts_pricing]}`}</div>}
       {noNc > 0 && <div className="norm-bad" style={{ fontSize: 10 }}>bez NC: {noNc} {plural(noNc, 'diel', 'diely', 'dielov')}</div>}
     </>
   )

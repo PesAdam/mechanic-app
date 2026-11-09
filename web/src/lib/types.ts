@@ -28,7 +28,8 @@ export interface OperationNorm {
 /** `price` is the retail price (MOC) on the invoice; `purchase_price` is what the shop paid (NC). */
 export interface Part { id: number; name: string; meta: string | null; price: number; purchase_price: number | null; used: boolean; added_at: string }
 /** Which part price the customer is billed on this order's report. */
-export type PartsPricing = 'moc' | 'nc'
+/** Part prices billed to the customer: retail (MOC), halfway between MOC and NC (stred) or purchase (NC). */
+export type PartsPricing = 'moc' | 'mid' | 'nc' | 'n10'
 /** How labor is billed: measured time, or the norm hours of the order's jobs. */
 export type LaborBilling = 'actual' | 'norm'
 
@@ -70,6 +71,8 @@ export interface Totals {
   seconds: number; norm_seconds: number; delta_seconds: number | null
   labor: number; labor_actual: number; labor_norm: number; labor_billing: LaborBilling
   parts: number; parts_retail: number; parts_cost: number; parts_pricing: PartsPricing; grand_computed: number; grand: number
+  /** What stays from the parts: billed − NC plus the owner's úprava (−50 = 50 € of it goes to someone else). */
+  parts_margin_adjustment: number; parts_margin: number
 }
 
 export interface Order {
@@ -80,7 +83,13 @@ export interface Order {
   /** Hand-edited total (zľava) and the calculated total it replaced; both null without an edit. */
   total_original: number | null
   total_override: number | null
+  /** €/h the order is billed at: the rate set when it came in, so a later change never reprices it. Null on a public report that does not print the rate. */
+  hourly_rate: number | null
+  /** The owner's úprava of the parts margin; zárobok only, the customer pays the same. Null without one. */
+  parts_margin_adjustment: number | null
   summary: string
+  /** Note to the customer; the report prints it only when filled in. */
+  report_note: string | null
   lift: string | null
   received_at: string | null
   /** When the shop plans to work on the order (ISO) and for how long; null = unplanned / the norm sum. */
@@ -127,7 +136,7 @@ export interface DashboardData {
    * `billed*` of all orders closed in it. `hours` is the time clocked in the period.
    */
   kpi: {
-    earnings: number; labor: number; parts_cost: number; parts_margin: number; discount: number; orders: number; pending: Pending
+    earnings: number; labor: number; parts_cost: number; parts_margin: number; parts_adjustment: number; discount: number; orders: number; pending: Pending
     billed: number; billed_parts_cost: number; billed_orders: number
     hours: number; paid: number; paid_count: number; due: number; due_count: number; norm_hours: number; efficiency: number | null
   }
@@ -139,7 +148,9 @@ export interface DashboardData {
 
 /** Money of the orders paid in a period. Zárobok = billed − parts at purchase price = labor + parts margin − zľavy. */
 export interface Earnings {
-  orders: number; billed: number; labor: number; parts_billed: number; parts_cost: number; parts_margin: number; discount: number
+  orders: number; billed: number; labor: number; parts_billed: number; parts_cost: number
+  /** Úpravy of the parts margin, already inside parts_margin and earnings (−50 = 50 € went to someone else). */
+  parts_adjustment: number; parts_margin: number; discount: number
   earnings: number; hours: number; per_hour: number | null
 }
 
@@ -148,7 +159,7 @@ export type Pending = Pick<Earnings, 'orders' | 'labor' | 'parts_margin' | 'earn
 
 export interface EarningsLine {
   id: number; number: string; closed_at: string | null; paid_at: string | null; status: OrderStatus; car: string; plate: string | null; customer: string | null
-  hours: number; labor: number; parts_billed: number; parts_cost: number; discount: number; billed: number; earnings: number
+  hours: number; labor: number; parts_billed: number; parts_cost: number; parts_adjustment: number; discount: number; billed: number; earnings: number
 }
 
 /** `GET /stats`: one week, month or year next to the one before and the same one a year earlier. */
@@ -166,6 +177,41 @@ export interface StatsData {
   year_earlier: (Earnings & { label: string }) | null
   trend: (Earnings & { label: string; title: string; date: string })[]
   orders: EarningsLine[]
+  insights: StatsInsights
+}
+
+/** A count of orders in an ordered band ("50–100 €", "1–3 dni"). */
+export interface StatsBand { label: string; count: number }
+
+/** `GET /stats` → insights: how the period's paid orders and worked hours break down. */
+export interface StatsInsights {
+  averages: {
+    order_billed: number | null; order_earnings: number | null; median_billed: number | null
+    biggest: { id: number; number: string; car: string; customer: string | null; billed: number; earnings: number } | null
+  }
+  /** Day by day (week, month) or month by month (year), by the day the money came in. */
+  breakdown: { label: string; title: string; date: string; labor: number; parts_margin: number; earnings: number; orders: number }[]
+  jobs: {
+    /** Labour by job category; `bez` = orders billed by time without any job. */
+    categories: { key: string; labor: number; jobs: number }[]
+    top: { name: string; count: number; labor: number; avg_minutes: number | null; norm_minutes: number }[]
+    norm_hours: number; actual_hours: number; efficiency: number | null
+  }
+  makes: { make: string; orders: number; earnings: number }[]
+  customers: { count: number; new: number; returning: number; top: { id: number; name: string; orders: number; billed: number; earnings: number }[] }
+  sizes: StatsBand[]
+  payment: { avg_days: number | null; bands: StatsBand[]; turnaround_days: number | null }
+  work: {
+    hours: number
+    mechanics: { id: number; name: string; hours: number; orders: number }[]
+    weekdays: { label: string; hours: number }[]
+    heatmap: { hours: number[]; rows: { label: string; cells: number[] }[] }
+  }
+  /** Closed and unpaid right now, by how long it has waited. */
+  owed: { count: number; total: number; oldest_days: number | null; bands: (StatsBand & { total: number })[] }
+  /** Zárobok added up month by month: the period's year (null for months ahead) next to the year before. */
+  year: { label: string; previous_label: string; months: string[]; current: (number | null)[]; previous: number[] }
+  requests: { count: number; accepted: number; rejected: number; waiting: number }
 }
 
 export interface NewOrderPayload {

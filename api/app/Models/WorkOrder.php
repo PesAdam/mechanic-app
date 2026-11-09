@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\OrderStatus;
 use App\Enums\PartsPricing;
+use App\Services\Settings;
 use Database\Factories\WorkOrderFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 /** A zákazka. Named WorkOrder because `jobs` belongs to the queue. */
-#[Fillable(['number', 'customer_id', 'car_id', 'summary', 'lift', 'status', 'parts_pricing', 'total_original', 'total_override', 'mechanic_id', 'received_at', 'planned_at', 'planned_minutes', 'closed_at', 'paid_at', 'public_token'])]
+#[Fillable(['number', 'customer_id', 'car_id', 'summary', 'report_note', 'lift', 'status', 'parts_pricing', 'total_original', 'total_override', 'parts_margin_adjustment', 'hourly_rate', 'mechanic_id', 'received_at', 'planned_at', 'planned_minutes', 'closed_at', 'paid_at', 'public_token'])]
 class WorkOrder extends Model
 {
     /** @use HasFactory<WorkOrderFactory> */
@@ -28,6 +29,8 @@ class WorkOrder extends Model
             'parts_pricing' => PartsPricing::class,
             'total_original' => 'decimal:2',
             'total_override' => 'decimal:2',
+            'parts_margin_adjustment' => 'decimal:2',
+            'hourly_rate' => 'decimal:2',
             'received_at' => 'datetime',
             'planned_at' => 'datetime',
             'planned_minutes' => 'integer',
@@ -41,6 +44,8 @@ class WorkOrder extends Model
         static::creating(function (WorkOrder $order): void {
             $order->public_token ??= (string) Str::uuid();
             $order->number ??= static::nextNumber();
+            // The rate is the one set when the order came in: raising it later leaves older orders' sums alone.
+            $order->hourly_rate ??= Settings::rate();
         });
 
         // Zárobok counts on the day the money came in, so marking paid stamps it and taking it back clears it.
@@ -49,6 +54,12 @@ class WorkOrder extends Model
                 $order->paid_at = $order->status === OrderStatus::Done ? ($order->paid_at ?? now()) : null;
             }
         });
+    }
+
+    /** €/h this order is billed at. */
+    public function rate(): float
+    {
+        return (float) ($this->hourly_rate ?? Settings::rate());
     }
 
     /** Numbers are zero-padded so a plain string MAX() orders them correctly. */

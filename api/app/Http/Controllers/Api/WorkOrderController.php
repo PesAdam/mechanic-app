@@ -10,10 +10,10 @@ use App\Models\Car;
 use App\Models\Customer;
 use App\Models\WorkOrder;
 use App\Services\CarCatalog;
+use App\Services\Customers;
 use App\Services\Norms;
 use App\Services\OperationSamples;
 use App\Services\OrderTotals;
-use App\Services\Settings;
 use App\Services\StaleStints;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -64,12 +64,12 @@ class WorkOrderController extends Controller
                 'km' => $data['car']['km'] ?? 0,
             ];
 
-            // A returning car keeps its history: same car row, same customer (details refreshed).
+            // A returning car keeps its history: same car row; a changed person goes on the car and this order
+            // only, never on the earlier orders (Customers::revise).
             $car = isset($data['car']['id']) ? Car::query()->with('customer')->find($data['car']['id']) : null;
             if ($car) {
                 $car->update(['km' => max($car->km, $attributes['km'])] + $attributes);
-                $customer = $car->customer;
-                $customer->update(array_filter($data['customer'], fn ($v) => $v !== null && $v !== ''));
+                $customer = Customers::revise($car->customer, array_filter($data['customer'], fn ($v) => $v !== null && $v !== ''), $car);
             } else {
                 $customer = Customer::query()->create($data['customer']);
                 $car = Car::query()->create($attributes + ['customer_id' => $customer->id]);
@@ -99,10 +99,12 @@ class WorkOrderController extends Controller
     {
         $data = $request->validate([
             'summary' => ['sometimes', 'string', 'max:255'],
+            'report_note' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'lift' => ['sometimes', 'nullable', 'string', 'max:32'],
             'status' => ['sometimes', Rule::enum(OrderStatus::class)],
             'parts_pricing' => ['sometimes', Rule::enum(PartsPricing::class)],
             'total_override' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'parts_margin_adjustment' => ['sometimes', 'nullable', 'numeric', 'between:-99999999.99,99999999.99'],
             'mechanic_id' => ['sometimes', 'nullable', 'exists:users,id'],
             'planned_at' => ['sometimes', 'nullable', 'date'],
             'planned_minutes' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:6000'],
@@ -125,7 +127,8 @@ class WorkOrderController extends Controller
                 $this->updateCar($order, $data['car']);
             }
             if (isset($data['customer'])) {
-                $order->customer->update($data['customer']);
+                // Shared with the car's other orders? Then this order gets its own customer row; finished reports keep theirs.
+                $data['customer_id'] = Customers::revise($order->customer, $data['customer'], $order->car, $order)->id;
             }
             if (array_key_exists('planned_at', $data)) {
                 $data['planned_at'] = self::localTime($data['planned_at']);
@@ -133,7 +136,7 @@ class WorkOrderController extends Controller
             $order->update(Arr::except($data, ['km', 'customer', 'car']));
             if (array_key_exists('total_override', $data)) {
                 // Keep the calculated total next to the edited one so the zľava stays visible.
-                $original = $data['total_override'] === null ? null : OrderTotals::compute($this->loaded($order), Settings::rate())['grand_computed'];
+                $original = $data['total_override'] === null ? null : OrderTotals::compute($this->loaded($order))['grand_computed'];
                 $order->update(['total_original' => $original]);
             }
             if (! array_key_exists('total_override', $data)) {

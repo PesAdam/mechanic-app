@@ -13,7 +13,7 @@ interface Props {
 
 /** One part: tick = charged to the customer, price in the chosen mode, optional edit. */
 export default function PartRow({ part, mode, disabled, onToggle, onEdit }: Props) {
-  const noNc = mode === 'nc' && part.purchase_price === null
+  const noNc = mode !== 'moc' && part.purchase_price === null
   return (
     <div className="part-row" style={{ cursor: 'default' }}>
       <button type="button" className="part-box" style={{ background: part.used ? 'var(--color-accent)' : 'transparent', cursor: disabled ? 'default' : 'pointer' }}

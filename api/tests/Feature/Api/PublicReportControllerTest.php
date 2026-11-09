@@ -40,12 +40,14 @@ class PublicReportControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('settings.report_labor', 'price')
             ->assertJsonPath('settings.hourly_rate', null)
+            ->assertJsonPath('order.hourly_rate', null)
             ->assertJsonMissingPath('settings.business.ico.missing');
 
         Setting::set('report_labor', 'time');
         $this->getJson("/api/v1/public/reports/{$order->public_token}")
             ->assertOk()
-            ->assertJsonPath('settings.hourly_rate', 25);
+            ->assertJsonPath('settings.hourly_rate', 25)
+            ->assertJsonPath('order.hourly_rate', 25);
     }
 
     public function test_public_report_carries_what_the_report_prints_and_nothing_that_gives_the_rate_away(): void

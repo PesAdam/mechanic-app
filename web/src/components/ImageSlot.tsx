@@ -12,20 +12,23 @@ interface Props {
   onPick?: (blob: Blob) => void
   /** When given, a small × in the corner removes the photo. */
   onRemove?: () => void
+  /** When given (and there is a photo), tapping the slot opens it full size instead of picking a file. */
+  onOpen?: () => void
 }
 
 /** A blueprint-framed photo slot. Empty slots show their label. */
-export default function ImageSlot({ src, label, style, className = '', onPick, onRemove }: Props) {
+export default function ImageSlot({ src, label, style, className = '', onPick, onRemove, onOpen }: Props) {
   const input = useRef<HTMLInputElement>(null)
-  const clickable = !!onPick
-  const open = () => input.current?.click()
+  const views = !!src && !!onOpen && !onPick
+  const clickable = !!onPick || views
+  const open = () => (views ? onOpen?.() : input.current?.click())
   return (
     <div
       className={`blueprint img-slot ${className}`.trim()}
       style={style}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
-      aria-label={clickable ? `${label} – vybrať fotku` : undefined}
+      aria-label={clickable ? `${label} – ${views ? 'zväčšiť' : 'vybrať fotku'}` : undefined}
       onClick={clickable ? open : undefined}
       onKeyDown={clickable ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } } : undefined}
     >
@@ -38,7 +41,7 @@ export default function ImageSlot({ src, label, style, className = '', onPick, o
           <X size={14} strokeWidth={2} />
         </button>
       )}
-      {clickable && (
+      {onPick && (
         <input
           ref={input} type="file" accept="image/*" hidden
           onChange={async e => {

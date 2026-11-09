@@ -1,10 +1,11 @@
-import { NavLink, Outlet } from 'react-router'
+import { useEffect, useRef } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router'
 import { BarChart3, CalendarDays, FileText, Inbox, LayoutGrid, ListChecks, LogOut, Settings, Smartphone, Users, Wrench } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useOrders, useServiceRequests, useSettings, useUsers } from '../data/queries'
 import { firstName } from '../lib/calc'
 
-/** Desktop shell for the owner: sidebar + page. */
+/** Shell for the owner: a sidebar beside the page on a desktop, a compact header with a sideways-scrolling tab strip on a phone. */
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const settings = useSettings()
@@ -14,12 +15,22 @@ export default function AdminLayout() {
   const list = orders.data ?? []
   const waiting = (requests.data ?? []).filter(r => r.status === 'new').length
   const brand = settings.data?.business.name ?? 'Dielňa'
+  const nav = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+
+  // The phone strip scrolls sideways: keep the open section in view.
+  useEffect(() => {
+    const el = nav.current
+    const active = el?.querySelector<HTMLElement>('a[aria-current="page"]')
+    if (!el || !active || el.scrollWidth <= el.clientWidth) return
+    el.scrollTo({ left: active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2, behavior: 'smooth' })
+  }, [pathname])
 
   return (
     <div className="dash">
       <aside className="dash-side">
-        <div className="hd" style={{ fontSize: 26, lineHeight: 1 }}>{brand}</div>
-        <nav className="dash-nav" aria-label="Sekcie">
+        <div className="dash-brand hd">{brand}</div>
+        <nav className="dash-nav" aria-label="Sekcie" ref={nav}>
           <NavLink to="/admin" end><LayoutGrid size={16} strokeWidth={1.5} />Prehľad</NavLink>
           <NavLink to="/admin/zakazky"><Wrench size={16} strokeWidth={1.5} />Zákazky</NavLink>
           <NavLink to="/admin/poziadavky"><Inbox size={16} strokeWidth={1.5} />Požiadavky
@@ -36,17 +47,17 @@ export default function AdminLayout() {
           {(users.data ?? []).filter(u => u.is_active).map(m => {
             const running = list.some(o => o.work_entries.some(e => !e.ended_at && e.user.id === m.id))
             return (
-              <div key={m.id}>
+              <div key={m.id} className="dash-mech">
                 <span>{firstName(m.name)}</span>
                 <span style={running ? { color: 'var(--color-accent-700)' } : undefined}>{running ? '● beží' : 'voľno'}</span>
               </div>
             )
           })}
-          <div style={{ marginTop: 10 }}>
+          <div className="dash-me">
             <span>{firstName(user?.name)}</span>
             <button type="button" className="linkbtn" onClick={() => void logout()} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><LogOut size={12} strokeWidth={1.5} />odhlásiť</button>
           </div>
-          <div>
+          <div className="dash-switch">
             <NavLink to="/m" style={{ color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Smartphone size={12} strokeWidth={1.5} />mobilná appka</NavLink>
           </div>
         </div>

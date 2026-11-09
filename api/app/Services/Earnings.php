@@ -56,28 +56,29 @@ final class Earnings
     }
 
     /**
-     * Zárobok = billed − parts at purchase price; equally labor + parts margin − zľavy.
+     * Zárobok = billed − parts at purchase price ± the owner's úprava of the parts margin; equally labor + parts margin − zľavy.
      *
      * @param  iterable<WorkOrder>  $orders
-     * @return array{orders: int, billed: float, labor: float, parts_billed: float, parts_cost: float, parts_margin: float, discount: float, earnings: float, hours: float, per_hour: float|null}
+     * @return array{orders: int, billed: float, labor: float, parts_billed: float, parts_cost: float, parts_adjustment: float, parts_margin: float, discount: float, earnings: float, hours: float, per_hour: float|null}
      */
-    public static function of(iterable $orders, float $rate, ?CarbonInterface $now = null): array
+    public static function of(iterable $orders, ?CarbonInterface $now = null): array
     {
         $now ??= CarbonImmutable::now();
-        $sum = ['orders' => 0, 'billed' => 0.0, 'labor' => 0.0, 'parts_billed' => 0.0, 'parts_cost' => 0.0, 'discount' => 0.0, 'seconds' => 0];
+        $sum = ['orders' => 0, 'billed' => 0.0, 'labor' => 0.0, 'parts_billed' => 0.0, 'parts_cost' => 0.0, 'parts_adjustment' => 0.0, 'discount' => 0.0, 'seconds' => 0];
 
         foreach ($orders as $order) {
-            $t = OrderTotals::compute($order, $rate, $now);
+            $t = OrderTotals::compute($order, $now);
             $sum['orders']++;
             $sum['billed'] += $t['grand'];
             $sum['labor'] += $t['labor'];
             $sum['parts_billed'] += $t['parts'];
             $sum['parts_cost'] += $t['parts_cost'];
+            $sum['parts_adjustment'] += $t['parts_margin_adjustment'];
             $sum['discount'] += $t['grand_computed'] - $t['grand'];
             $sum['seconds'] += $t['seconds'];
         }
 
-        $earnings = $sum['billed'] - $sum['parts_cost'];
+        $earnings = $sum['billed'] - $sum['parts_cost'] + $sum['parts_adjustment'];
         $hours = $sum['seconds'] / 3600;
 
         return [
@@ -86,7 +87,8 @@ final class Earnings
             'labor' => round($sum['labor'], 2),
             'parts_billed' => round($sum['parts_billed'], 2),
             'parts_cost' => round($sum['parts_cost'], 2),
-            'parts_margin' => round($sum['parts_billed'] - $sum['parts_cost'], 2),
+            'parts_adjustment' => round($sum['parts_adjustment'], 2),
+            'parts_margin' => round($sum['parts_billed'] - $sum['parts_cost'] + $sum['parts_adjustment'], 2),
             'discount' => round($sum['discount'], 2),
             'earnings' => round($earnings, 2),
             'hours' => round($hours, 1),
@@ -97,11 +99,11 @@ final class Earnings
     /**
      * One line per paid order, for the statistics table and the CSV export.
      *
-     * @return array{id: int, number: string, closed_at: string|null, paid_at: string|null, status: string, car: string, plate: string|null, customer: string|null, hours: float, labor: float, parts_billed: float, parts_cost: float, discount: float, billed: float, earnings: float}
+     * @return array{id: int, number: string, closed_at: string|null, paid_at: string|null, status: string, car: string, plate: string|null, customer: string|null, hours: float, labor: float, parts_billed: float, parts_cost: float, parts_adjustment: float, discount: float, billed: float, earnings: float}
      */
-    public static function line(WorkOrder $order, float $rate, ?CarbonInterface $now = null): array
+    public static function line(WorkOrder $order, ?CarbonInterface $now = null): array
     {
-        $t = OrderTotals::compute($order, $rate, $now ?? CarbonImmutable::now());
+        $t = OrderTotals::compute($order, $now ?? CarbonImmutable::now());
 
         return [
             'id' => $order->id,
@@ -116,9 +118,20 @@ final class Earnings
             'labor' => $t['labor'],
             'parts_billed' => $t['parts'],
             'parts_cost' => $t['parts_cost'],
+            'parts_adjustment' => $t['parts_margin_adjustment'],
             'discount' => round($t['grand_computed'] - $t['grand'], 2),
             'billed' => round($t['grand'], 2),
-            'earnings' => round($t['grand'] - $t['parts_cost'], 2),
+            'earnings' => self::kept($t),
         ];
+    }
+
+    /**
+     * What stays with the shop from one order: what the customer pays − parts at purchase price ± the margin úprava.
+     *
+     * @param  array<string, mixed>  $totals  OrderTotals::compute()
+     */
+    public static function kept(array $totals): float
+    {
+        return round($totals['grand'] - $totals['parts_cost'] + $totals['parts_margin_adjustment'], 2);
     }
 }

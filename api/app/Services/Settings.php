@@ -69,17 +69,17 @@ final class Settings
     }
 
     /**
-     * What the unauthenticated report page gets: the business block and the report flags; the hourly rate only
-     * when the owner chose to print it.
+     * What the unauthenticated report page gets: the business block and the report flags; the hourly rate the
+     * order was billed at only when the owner chose to print it.
      *
      * @return array{hourly_rate: float|null, labor_billing: string, report_labor: string, business: array<string, mixed>}
      */
-    public static function publicPayload(): array
+    public static function publicPayload(float $orderRate): array
     {
         $all = self::payload();
 
         return [
-            'hourly_rate' => $all['report_labor'] === 'time' ? $all['hourly_rate'] : null,
+            'hourly_rate' => $all['report_labor'] === 'time' ? $orderRate : null,
             'labor_billing' => $all['labor_billing'],
             'report_labor' => $all['report_labor'],
             'business' => $all['business'],
